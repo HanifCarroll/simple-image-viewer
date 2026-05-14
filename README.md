@@ -55,8 +55,10 @@ Verify that the app builds and launches:
 
 Verification builds the app bundle, creates a temporary fixture image folder
 under `dist/`, compiles and runs a small Swift smoke test for image discovery
-and `NSImage` decoding, then launches the app against a real fixture image and
-checks that the viewer window opens that image.
+opening plans, list projection, recursive folder handling, and `NSImage`
+decoding. It then launches the app against a non-first fixture image, checks
+that the viewer selects it, relaunches against the fixture folder, and checks
+that the viewer opens the natural first image.
 
 ## Use As Default Image Viewer
 
@@ -77,6 +79,10 @@ Sources/SimpleImageViewer/
   AppDelegate.swift     macOS launch and open-file handling
   ImageStore.swift      Viewer state and open/navigation actions
   ImageDiscovery.swift  Folder scanning and natural filename order
+  ImageOpeningService.swift
+                        Open-file and open-folder planning
+  ImageListPresentation.swift
+                        Sorting and filtering projection for the visible list
   ContentView.swift     Main SwiftUI layout
   ThumbnailButton.swift Thumbnail rail item
 script/
