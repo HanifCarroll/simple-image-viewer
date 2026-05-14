@@ -81,20 +81,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
-        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty else {
+        guard !event.hasViewerNavigationModifier else {
+            return event
+        }
+
+        guard !isTextInputActive(in: event.window ?? NSApp.keyWindow) else {
             return event
         }
 
         switch event.keyCode {
         case 123:
-            sessionCoordinator.navigate(-1, in: event.window ?? NSApp.keyWindow)
-            return nil
+            return sessionCoordinator.navigate(-1, in: event.window ?? NSApp.keyWindow) ? nil : event
         case 124:
-            sessionCoordinator.navigate(1, in: event.window ?? NSApp.keyWindow)
-            return nil
+            return sessionCoordinator.navigate(1, in: event.window ?? NSApp.keyWindow) ? nil : event
         default:
             return event
         }
+    }
+
+    private func isTextInputActive(in window: NSWindow?) -> Bool {
+        window?.firstResponder is NSTextView
     }
 
     private func fitWindowsToVisibleScreen() {

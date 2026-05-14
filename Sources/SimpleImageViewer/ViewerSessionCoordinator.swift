@@ -131,8 +131,11 @@ final class ViewerSessionCoordinator {
         activeSession()?.store.navigate(delta)
     }
 
-    func navigate(_ delta: Int, in window: NSWindow?) {
-        session(for: window)?.store.navigate(delta)
+    @discardableResult
+    func navigate(_ delta: Int, in window: NSWindow?) -> Bool {
+        guard let session = session(for: window) else { return false }
+        session.store.navigate(delta)
+        return true
     }
 
     func selectFirstInActiveWindow() {
