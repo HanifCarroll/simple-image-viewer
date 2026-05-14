@@ -1,15 +1,6 @@
 import AppKit
 import UniformTypeIdentifiers
 
-enum ImageSortOption: String, CaseIterable, Identifiable {
-    case name = "Name"
-    case folderPath = "Folder"
-    case dateModified = "Date Modified"
-    case fileType = "File Type"
-
-    var id: Self { self }
-}
-
 final class ImageStore: ObservableObject {
     @Published private(set) var allImages: [URL] = []
     @Published var images: [URL] = []
@@ -25,7 +16,7 @@ final class ImageStore: ObservableObject {
     @Published var sortAscending = true {
         didSet { applyViewOptions(preserving: currentURL) }
     }
-    @Published var typeFilter = "All" {
+    @Published var typeFilter = ImageListPresenter.allTypesFilter {
         didSet { applyViewOptions(preserving: currentURL) }
     }
     @Published var nameFilter = "" {
@@ -49,24 +40,25 @@ final class ImageStore: ObservableObject {
     }
 
     var availableTypeFilters: [String] {
-        let extensions = Set(allImages.map { normalizedType($0) })
-        return ["All"] + extensions.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        ImageListPresenter.availableTypeFilters(for: allImages)
     }
 
     func open(_ url: URL) {
-        let folderURL: URL
-        if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-            folderURL = url
-        } else {
-            folderURL = url.deletingLastPathComponent()
-        }
-
         openCancellation?.cancel()
         let cancellation = FolderDiscoveryCancellation()
         openCancellation = cancellation
         openGeneration += 1
         let generation = openGeneration
-        let options = folderScanOptions
+        let plan = ImageOpeningService.plan(for: url, options: folderScanOptions, cancellation: cancellation)
+        resetForOpening()
+
+        ImageOpeningService.loadBatches(for: plan) { [weak self] batch, finished in
+            guard let self, self.openGeneration == generation else { return }
+            self.receiveImageBatch(batch, sourceURL: plan.sourceURL, finished: finished)
+        }
+    }
+
+    private func resetForOpening() {
         status = "Loading images..."
         cancelCurrentImageLoad()
         currentImage = nil
@@ -74,15 +66,51 @@ final class ImageStore: ObservableObject {
         allImages = []
         currentIndex = 0
         isProgressivelyLoading = true
+    }
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            enumerateImageURLBatches(in: folderURL, options: options, cancellation: cancellation) { batch, finished in
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, self.openGeneration == generation else { return }
-                    self.receiveImageBatch(batch, sourceURL: url, finished: finished)
-                }
+    private var viewOptions: ImageViewOptions {
+        ImageViewOptions(
+            sortOption: sortOption,
+            sortAscending: sortAscending,
+            typeFilter: typeFilter,
+            nameFilter: nameFilter
+        )
+    }
+
+    private var usesDefaultViewOptions: Bool {
+        viewOptions.usesDefaultProjection
+    }
+
+    private func applyOpenedImages(_ urls: [URL], preferredURL: URL?) {
+        if usesDefaultViewOptions {
+            images = urls
+            if let preferredURL,
+               let index = images.firstIndex(where: { $0.standardizedFileURL == preferredURL.standardizedFileURL }) {
+                currentIndex = index
+            } else {
+                currentIndex = 0
             }
+            CurrentImagePresenter.warmInitialThumbnails(images: images, currentIndex: currentIndex)
+            loadCurrent()
+        } else {
+            applyViewOptions(preserving: preferredURL)
         }
+    }
+
+    private func displayFirstBatchIfNeeded(sourceURL: URL, wasEmpty: Bool) {
+        guard wasEmpty else {
+            updateLoadingStatus()
+            return
+        }
+
+        if !sourceURL.hasDirectoryPath,
+           let index = images.firstIndex(where: { $0.standardizedFileURL == sourceURL.standardizedFileURL }) {
+            currentIndex = index
+        } else {
+            currentIndex = 0
+        }
+        CurrentImagePresenter.warmInitialThumbnails(images: images, currentIndex: currentIndex)
+        loadCurrent()
     }
 
     private func finishOpen(_ url: URL, urls: [URL]) {
@@ -98,19 +126,7 @@ final class ImageStore: ObservableObject {
         }
 
         allImages = urls
-        if usesDefaultViewOptions {
-            images = urls
-            if !url.hasDirectoryPath,
-               let index = images.firstIndex(where: { $0.standardizedFileURL == url.standardizedFileURL }) {
-                currentIndex = index
-            } else {
-                currentIndex = 0
-            }
-            warmInitialThumbnails()
-            loadCurrent()
-        } else {
-            applyViewOptions(preserving: url.hasDirectoryPath ? nil : url)
-        }
+        applyOpenedImages(urls, preferredURL: url.hasDirectoryPath ? nil : url)
     }
 
     private func receiveImageBatch(_ batch: [URL], sourceURL: URL, finished: Bool) {
@@ -120,18 +136,7 @@ final class ImageStore: ObservableObject {
             if usesDefaultViewOptions {
                 let wasEmpty = images.isEmpty
                 images.append(contentsOf: batch)
-                if wasEmpty {
-                    if !sourceURL.hasDirectoryPath,
-                       let index = images.firstIndex(where: { $0.standardizedFileURL == sourceURL.standardizedFileURL }) {
-                        currentIndex = index
-                    } else {
-                        currentIndex = 0
-                    }
-                    warmInitialThumbnails()
-                    loadCurrent()
-                } else {
-                    updateLoadingStatus()
-                }
+                displayFirstBatchIfNeeded(sourceURL: sourceURL, wasEmpty: wasEmpty)
             } else {
                 applyViewOptions(preserving: currentURL)
             }
@@ -174,7 +179,7 @@ final class ImageStore: ObservableObject {
             panel.runModal()
         }
         if result == .OK, let url = panel.url {
-            let folderURL = folderURL(for: url)
+            let folderURL = ImageOpeningService.folderURL(for: url)
             includeSubfolders = accessoryModel.includeSubfolders
             maxFolderDepth = accessoryModel.maxFolderDepth
             maxPhotoCount = accessoryModel.maxPhotoCount
@@ -233,11 +238,11 @@ final class ImageStore: ObservableObject {
     }
 
     private func updateLoadingStatus() {
-        if let currentURL {
-            status = "\(currentURL.lastPathComponent)  (\(currentIndex + 1) of \(images.count), still scanning...)"
-        } else {
-            status = "Loaded \(images.count) images, still scanning..."
-        }
+        status = CurrentImagePresenter.loadingStatus(
+            for: currentURL,
+            index: currentIndex,
+            visibleCount: images.count
+        )
     }
 
     private var folderScanOptions: FolderScanOptions {
@@ -248,31 +253,10 @@ final class ImageStore: ObservableObject {
         )
     }
 
-    private func folderURL(for url: URL) -> URL {
-        if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-            return url
-        }
-        return url.deletingLastPathComponent()
-    }
-
-    private var usesDefaultViewOptions: Bool {
-        sortOption == .name &&
-            sortAscending &&
-            typeFilter == "All" &&
-            nameFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     private func applyViewOptions(preserving preferredURL: URL?) {
         guard !allImages.isEmpty else { return }
 
-        let filtered = allImages.filter { url in
-            let matchesType = typeFilter == "All" || normalizedType(url) == typeFilter
-            let matchesName = nameFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                url.lastPathComponent.localizedCaseInsensitiveContains(nameFilter)
-            return matchesType && matchesName
-        }
-
-        images = sort(filtered)
+        images = ImageListPresenter.project(allImages, using: viewOptions)
         guard !images.isEmpty else {
             currentIndex = 0
             currentImage = nil
@@ -285,44 +269,8 @@ final class ImageStore: ObservableObject {
         } else {
             currentIndex = min(currentIndex, max(images.count - 1, 0))
         }
-        warmInitialThumbnails()
+        CurrentImagePresenter.warmInitialThumbnails(images: images, currentIndex: currentIndex)
         loadCurrent()
-    }
-
-    private func warmInitialThumbnails() {
-        guard !images.isEmpty else { return }
-        let startIndex = max(images.startIndex, currentIndex - 4)
-        let endIndex = min(images.index(before: images.endIndex), currentIndex + 12)
-        ThumbnailCache.shared.preheat(Array(images[startIndex...endIndex]))
-    }
-
-    private func sort(_ urls: [URL]) -> [URL] {
-        urls.sorted { lhs, rhs in
-            let result: ComparisonResult
-            switch sortOption {
-            case .name:
-                result = lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent)
-            case .folderPath:
-                result = lhs.deletingLastPathComponent().path.localizedStandardCompare(rhs.deletingLastPathComponent().path)
-            case .dateModified:
-                result = modificationDate(lhs).compare(modificationDate(rhs))
-            case .fileType:
-                result = normalizedType(lhs).localizedStandardCompare(normalizedType(rhs))
-            }
-
-            if result == .orderedSame {
-                return lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
-            }
-            return sortAscending ? result == .orderedAscending : result == .orderedDescending
-        }
-    }
-
-    private func normalizedType(_ url: URL) -> String {
-        url.pathExtension.isEmpty ? "Other" : url.pathExtension.uppercased()
-    }
-
-    private func modificationDate(_ url: URL) -> Date {
-        (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
     }
 }
 
