@@ -6,6 +6,10 @@ final class ImageStore: ObservableObject {
     @Published var currentIndex = 0
     @Published var currentImage: NSImage?
     @Published var status = "Open an image or folder"
+    @Published var includeSubfolders = false
+    @Published var maxFolderDepth = 2
+    @Published var maxPhotoCount = 0
+    @Published var pendingFolderSummary: FolderScanSummary?
 
     var currentURL: URL? {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
@@ -19,7 +23,7 @@ final class ImageStore: ObservableObject {
             folderURL = url.deletingLastPathComponent()
         }
 
-        let urls = imageURLs(in: folderURL)
+        let urls = imageURLs(in: folderURL, options: folderScanOptions)
         guard !urls.isEmpty else {
             images = []
             currentIndex = 0
@@ -56,8 +60,22 @@ final class ImageStore: ObservableObject {
         panel.canChooseDirectories = true
         panel.prompt = "Open Folder"
         if panel.runModal() == .OK, let url = panel.url {
-            open(url)
+            prepareFolderOpen(url)
         }
+    }
+
+    func prepareFolderOpen(_ url: URL) {
+        pendingFolderSummary = scanFolder(url)
+    }
+
+    func confirmPendingFolderOpen() {
+        guard let folderURL = pendingFolderSummary?.rootURL else { return }
+        pendingFolderSummary = nil
+        open(folderURL)
+    }
+
+    func cancelPendingFolderOpen() {
+        pendingFolderSummary = nil
     }
 
     func navigate(_ delta: Int) {
@@ -77,5 +95,13 @@ final class ImageStore: ObservableObject {
         guard let currentURL else { return }
         currentImage = NSImage(contentsOf: currentURL)
         status = "\(currentURL.lastPathComponent)  (\(currentIndex + 1) of \(images.count))"
+    }
+
+    private var folderScanOptions: FolderScanOptions {
+        FolderScanOptions(
+            includeSubfolders: includeSubfolders,
+            maxDepth: maxFolderDepth,
+            maxImages: maxPhotoCount
+        )
     }
 }
