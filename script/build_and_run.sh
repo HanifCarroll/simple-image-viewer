@@ -9,6 +9,8 @@ DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$BINARY_NAME"
 APP_LOG="$HOME/Library/Logs/$APP_NAME/app.log"
+VERIFY_FIXTURE_DIR="$DIST_DIR/verify-fixtures"
+VERIFY_HELPER="$DIST_DIR/verify-image-discovery"
 MODE="${1:-run}"
 
 cd "$ROOT_DIR"
@@ -95,10 +97,82 @@ PLIST
 
 open_app() {
   if [[ "$#" -gt 0 ]]; then
-    /usr/bin/open -n "$APP_BUNDLE" --args "$@"
+    /usr/bin/open -n -a "$APP_BUNDLE" "$@"
   else
     /usr/bin/open -n "$APP_BUNDLE"
   fi
+}
+
+create_verify_fixtures() {
+  rm -rf "$VERIFY_FIXTURE_DIR"
+  mkdir -p "$VERIFY_FIXTURE_DIR"
+
+  if [[ ! -f "$ROOT_DIR/Assets/AppIcon.png" ]]; then
+    echo "verify fixture source missing: Assets/AppIcon.png" >&2
+    exit 1
+  fi
+
+  sips -s format png "$ROOT_DIR/Assets/AppIcon.png" --out "$VERIFY_FIXTURE_DIR/image-02.png" >/dev/null
+  sips -s format jpeg "$ROOT_DIR/Assets/AppIcon.png" --out "$VERIFY_FIXTURE_DIR/image-10.jpg" >/dev/null
+  printf '%s\n' "not an image" > "$VERIFY_FIXTURE_DIR/notes.txt"
+}
+
+verify_image_code_paths() {
+  swiftc "$ROOT_DIR/Sources/SimpleImageViewer/ImageDiscovery.swift" \
+    "$ROOT_DIR/script/verify_image_discovery.swift" \
+    -o "$VERIFY_HELPER" \
+    -framework AppKit
+  "$VERIFY_HELPER" "$VERIFY_FIXTURE_DIR"
+}
+
+wait_for_app_pid() {
+  local pid
+  for _ in {1..40}; do
+    pid="$(pgrep -f "$EXECUTABLE" | head -n 1 || true)"
+    if [[ -n "$pid" ]]; then
+      printf '%s\n' "$pid"
+      return 0
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
+window_title_for_pid() {
+  osascript - "$1" <<'APPLESCRIPT'
+on run argv
+  set targetPid to item 1 of argv as integer
+  tell application "System Events"
+    tell (first process whose unix id is targetPid)
+      if (count of windows) is 0 then return ""
+      return title of window 1
+    end tell
+  end tell
+end run
+APPLESCRIPT
+}
+
+verify_app_opened_fixture() {
+  local expected_title="$1"
+  local pid
+  local title
+
+  pid="$(wait_for_app_pid)" || {
+    echo "$APP_NAME did not start" >&2
+    exit 1
+  }
+
+  for _ in {1..40}; do
+    title="$(window_title_for_pid "$pid" 2>/dev/null || true)"
+    if [[ "$title" == "$expected_title" ]]; then
+      echo "$APP_NAME opened fixture image: $title"
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo "$APP_NAME started but did not show fixture image title: expected '$expected_title', got '${title:-<none>}'" >&2
+  exit 1
 }
 
 case "$MODE" in
@@ -106,10 +180,10 @@ case "$MODE" in
     open_app "$@"
     ;;
   --verify)
-    open_app "$@"
-    sleep 2
-    pgrep -f "$EXECUTABLE" >/dev/null
-    echo "$APP_NAME is running"
+    create_verify_fixtures
+    verify_image_code_paths
+    open_app "$VERIFY_FIXTURE_DIR/image-02.png"
+    verify_app_opened_fixture "image-02.png"
     ;;
   --app-log)
     mkdir -p "$(dirname "$APP_LOG")"

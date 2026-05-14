@@ -53,6 +53,11 @@ Verify that the app builds and launches:
 ./script/build_and_run.sh --verify
 ```
 
+Verification builds the app bundle, creates a temporary fixture image folder
+under `dist/`, compiles and runs a small Swift smoke test for image discovery
+and `NSImage` decoding, then launches the app against a real fixture image and
+checks that the viewer window opens that image.
+
 ## Use As Default Image Viewer
 
 After building once:
@@ -76,6 +81,8 @@ Sources/SimpleImageViewer/
   ThumbnailButton.swift Thumbnail rail item
 script/
   build_and_run.sh      Build, bundle, launch, and verify
+  verify_image_discovery.swift
+                        Lightweight fixture-based verification helper
 ```
 
 ## Development Notes
