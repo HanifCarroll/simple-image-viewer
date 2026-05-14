@@ -1,25 +1,12 @@
 import AppKit
-import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private weak var store: ImageStore?
-    private var pendingURLs: [URL] = []
-    private var viewerWindows: [NSWindowController] = []
-    private var usedInitialWindowForExternalOpen = false
+    let sessionCoordinator = ViewerSessionCoordinator()
     private var keyEventMonitor: Any?
 
     override init() {
         super.init()
-        pendingURLs.append(contentsOf: Self.launchArgumentURLs())
-    }
-
-    func attach(_ store: ImageStore) {
-        guard self.store == nil else { return }
-        self.store = store
-        if !pendingURLs.isEmpty {
-            openURLs(pendingURLs)
-            pendingURLs.removeAll()
-        }
+        sessionCoordinator.queueLaunchURLs(Self.launchArgumentURLs())
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -29,6 +16,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleKeyDown(event)
         }
         DispatchQueue.main.async {
+            self.sessionCoordinator.openInitialWindow()
+            self.fitWindowsToVisibleScreen()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.sessionCoordinator.closeUnmanagedWindows()
             self.fitWindowsToVisibleScreen()
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -55,34 +47,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func openPanelInNewWindow() {
-        let store = ImageStore()
-        openIndependentWindow(store: store)
-        store.openPanel()
+        sessionCoordinator.openPanelInNewWindow()
     }
 
     func openActiveWindowPanel() {
-        if let store = activeStore() {
-            store.openPanel()
-        } else {
-            openPanelInNewWindow()
-        }
+        sessionCoordinator.openActiveWindowPanel()
     }
 
     func openNewViewerWindow() {
-        openIndependentWindow(store: ImageStore())
+        sessionCoordinator.openNewViewerWindow()
     }
 
     func navigateActiveWindow(_ delta: Int) {
-        activeStore()?.navigate(delta)
+        sessionCoordinator.navigateActiveWindow(delta)
     }
 
     func selectFirstInActiveWindow() {
-        activeStore()?.select(0)
+        sessionCoordinator.selectFirstInActiveWindow()
     }
 
     func selectLastInActiveWindow() {
-        guard let store = activeStore() else { return }
-        store.select(store.images.count - 1)
+        sessionCoordinator.selectLastInActiveWindow()
     }
 
     deinit {
@@ -92,49 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func openURLs(_ urls: [URL]) {
-        guard let store else {
-            pendingURLs.append(contentsOf: urls)
-            return
-        }
-
-        var urlsToOpen = urls
-        if !store.hasOpenedContent, !usedInitialWindowForExternalOpen, let firstURL = urlsToOpen.first {
-            usedInitialWindowForExternalOpen = true
-            store.open(firstURL)
-            urlsToOpen.removeFirst()
-        }
-
-        for url in urlsToOpen {
-            let store = ImageStore()
-            openIndependentWindow(store: store)
-            store.open(url)
-        }
-    }
-
-    private func openIndependentWindow(store: ImageStore) {
-        let contentView = ContentView(store: store)
-            .frame(minWidth: 760, idealWidth: 1100, minHeight: 520, idealHeight: 760)
-
-        let window = ViewerWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.store = store
-        window.title = "Simple Image Viewer"
-        window.contentViewController = NSHostingController(rootView: contentView)
-        window.delegate = self
-        window.center()
-
-        let controller = NSWindowController(window: window)
-        viewerWindows.append(controller)
-        controller.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    private func activeStore() -> ImageStore? {
-        ActiveViewerStore.shared.store(for: NSApp.keyWindow ?? NSApp.mainWindow)
+        sessionCoordinator.open(urls)
     }
 
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
@@ -144,10 +87,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         switch event.keyCode {
         case 123:
-            ActiveViewerStore.shared.store(for: event.window ?? NSApp.keyWindow)?.navigate(-1)
+            sessionCoordinator.navigate(-1, in: event.window ?? NSApp.keyWindow)
             return nil
         case 124:
-            ActiveViewerStore.shared.store(for: event.window ?? NSApp.keyWindow)?.navigate(1)
+            sessionCoordinator.navigate(1, in: event.window ?? NSApp.keyWindow)
             return nil
         default:
             return event
@@ -181,13 +124,5 @@ private extension AppDelegate {
             .dropFirst()
             .filter { !$0.hasPrefix("-") }
             .map { URL(fileURLWithPath: $0) }
-    }
-}
-
-extension AppDelegate: NSWindowDelegate {
-    func windowWillClose(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow else { return }
-        ActiveViewerStore.shared.unregister(window: window)
-        viewerWindows.removeAll { $0.window === window }
     }
 }
