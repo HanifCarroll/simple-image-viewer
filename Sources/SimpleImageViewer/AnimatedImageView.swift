@@ -4,6 +4,10 @@ import SwiftUI
 struct AnimatedImageView: NSViewRepresentable {
     let url: URL
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeNSView(context: Context) -> NSImageView {
         let imageView = FittingAnimatedNSImageView()
         imageView.imageAlignment = .alignCenter
@@ -19,8 +23,31 @@ struct AnimatedImageView: NSViewRepresentable {
     }
 
     func updateNSView(_ imageView: NSImageView, context: Context) {
-        imageView.image = NSImage(contentsOf: url)
-        imageView.animates = true
+        context.coordinator.load(url, into: imageView)
+    }
+
+    final class Coordinator {
+        private var loadingURL: URL?
+        private var task: ImageLoadingTask?
+
+        deinit {
+            task?.cancel()
+        }
+
+        func load(_ url: URL, into imageView: NSImageView) {
+            guard loadingURL != url else { return }
+
+            loadingURL = url
+            task?.cancel()
+            imageView.image = nil
+            imageView.animates = true
+
+            task = ImageLoadingService.shared.loadAnimatedImage(for: url) { [weak self, weak imageView] image in
+                guard let self, self.loadingURL == url, let imageView else { return }
+                imageView.image = image
+                imageView.animates = true
+            }
+        }
     }
 }
 

@@ -33,6 +33,7 @@ final class ImageStore: ObservableObject {
     }
     private var openGeneration = 0
     private var isProgressivelyLoading = false
+    private var currentImageTask: ImageLoadingTask?
 
     var currentURL: URL? {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
@@ -63,6 +64,7 @@ final class ImageStore: ObservableObject {
         let generation = openGeneration
         let options = folderScanOptions
         status = "Loading images..."
+        cancelCurrentImageLoad()
         currentImage = nil
         images = []
         allImages = []
@@ -85,6 +87,7 @@ final class ImageStore: ObservableObject {
             images = []
             allImages = []
             currentIndex = 0
+            cancelCurrentImageLoad()
             currentImage = nil
             status = "No supported images found"
             return
@@ -133,6 +136,7 @@ final class ImageStore: ObservableObject {
         if finished {
             isProgressivelyLoading = false
             if images.isEmpty {
+                cancelCurrentImageLoad()
                 currentImage = nil
                 status = "No supported images found"
             } else {
@@ -201,9 +205,27 @@ final class ImageStore: ObservableObject {
 
     private func loadCurrent() {
         guard let currentURL else { return }
-        currentImage = NSImage(contentsOf: currentURL)
+        cancelCurrentImageLoad()
+
+        if currentURL.isGIFForViewer {
+            currentImage = nil
+        } else if let cached = ImageLoadingService.shared.cachedDisplayImage(for: currentURL) {
+            currentImage = cached
+        } else {
+            currentImage = nil
+            currentImageTask = ImageLoadingService.shared.loadDisplayImage(for: currentURL) { [weak self] image in
+                guard let self, self.currentURL?.standardizedFileURL == currentURL.standardizedFileURL else { return }
+                self.currentImage = image
+                self.currentImageTask = nil
+            }
+        }
         let loadingSuffix = isProgressivelyLoading ? ", still scanning..." : ""
         status = "\(currentURL.lastPathComponent)  (\(currentIndex + 1) of \(images.count)\(loadingSuffix))"
+    }
+
+    private func cancelCurrentImageLoad() {
+        currentImageTask?.cancel()
+        currentImageTask = nil
     }
 
     private func updateLoadingStatus() {
@@ -267,7 +289,7 @@ final class ImageStore: ObservableObject {
         guard !images.isEmpty else { return }
         let startIndex = max(images.startIndex, currentIndex - 4)
         let endIndex = min(images.index(before: images.endIndex), currentIndex + 12)
-        ThumbnailCache.shared.warmImmediately(images[startIndex...endIndex])
+        ThumbnailCache.shared.preheat(Array(images[startIndex...endIndex]))
     }
 
     private func sort(_ urls: [URL]) -> [URL] {
@@ -297,5 +319,11 @@ final class ImageStore: ObservableObject {
 
     private func modificationDate(_ url: URL) -> Date {
         (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+    }
+}
+
+private extension URL {
+    var isGIFForViewer: Bool {
+        pathExtension.caseInsensitiveCompare("gif") == .orderedSame
     }
 }
