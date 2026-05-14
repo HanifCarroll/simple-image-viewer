@@ -26,6 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
         let url = URL(fileURLWithPath: filename)
         if let store {
+            if store.hasOpenedContent {
+                openInDisconnectedInstance(url)
+                return true
+            }
             store.open(url)
         } else {
             pendingURL = url
@@ -35,6 +39,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    private func openInDisconnectedInstance(_ url: URL) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-n", Bundle.main.bundleURL.path, "--args", url.path]
+        try? process.run()
     }
 
     private func fitWindowsToVisibleScreen() {

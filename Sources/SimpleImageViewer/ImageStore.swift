@@ -38,6 +38,10 @@ final class ImageStore: ObservableObject {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
     }
 
+    var hasOpenedContent: Bool {
+        !allImages.isEmpty || !images.isEmpty || currentImage != nil
+    }
+
     var availableTypeFilters: [String] {
         let extensions = Set(allImages.map { normalizedType($0) })
         return ["All"] + extensions.sorted { $0.localizedStandardCompare($1) == .orderedAscending }

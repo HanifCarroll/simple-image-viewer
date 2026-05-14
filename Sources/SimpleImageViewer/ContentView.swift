@@ -107,10 +107,15 @@ struct ContentView: View {
             .frame(height: 112)
             .fixedSize(horizontal: false, vertical: true)
             .background(.bar)
+            .onAppear {
+                preheatThumbnails(around: store.currentIndex)
+            }
             .onChange(of: store.currentIndex) { _, index in
+                preheatThumbnails(around: index)
                 scrollToSelectedThumbnail(index, with: proxy)
             }
             .onChange(of: store.images.count) { _, _ in
+                preheatThumbnails(around: store.currentIndex)
                 scrollToSelectedThumbnail(store.currentIndex, with: proxy)
             }
         }
@@ -118,9 +123,14 @@ struct ContentView: View {
 
     private func scrollToSelectedThumbnail(_ index: Int, with proxy: ScrollViewProxy) {
         guard store.images.indices.contains(index) else { return }
-        withAnimation(.easeOut(duration: 0.12)) {
-            proxy.scrollTo(index, anchor: .center)
-        }
+        proxy.scrollTo(index, anchor: .center)
+    }
+
+    private func preheatThumbnails(around index: Int) {
+        guard store.images.indices.contains(index) else { return }
+        let lowerBound = max(store.images.startIndex, index - 24)
+        let upperBound = min(store.images.index(before: store.images.endIndex), index + 48)
+        ThumbnailCache.shared.preheat(Array(store.images[lowerBound...upperBound]))
     }
 }
 
