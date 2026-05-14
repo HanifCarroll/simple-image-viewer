@@ -47,15 +47,6 @@ final class FolderOpenAccessoryModel {
         clampOptions()
     }
 
-    func updateSelection(_ url: URL?) {
-        guard let url else {
-            clearSelection()
-            return
-        }
-
-        updateSummary(scanFolder(url))
-    }
-
     func clampOptions() {
         guard hasSubfolders else {
             includeSubfolders = false

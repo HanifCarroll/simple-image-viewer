@@ -88,7 +88,7 @@ struct ContentView: View {
 
     private var thumbnailRail: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 10) {
+            LazyHStack(spacing: 10) {
                 ForEach(Array(store.images.enumerated()), id: \.offset) { index, url in
                     ThumbnailButton(
                         url: url,

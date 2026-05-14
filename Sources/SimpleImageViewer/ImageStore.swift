@@ -32,6 +32,7 @@ final class ImageStore: ObservableObject {
         didSet { applyViewOptions(preserving: currentURL) }
     }
     private var openGeneration = 0
+    private var isProgressivelyLoading = false
 
     var currentURL: URL? {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
@@ -55,17 +56,23 @@ final class ImageStore: ObservableObject {
         let options = folderScanOptions
         status = "Loading images..."
         currentImage = nil
+        images = []
+        allImages = []
+        currentIndex = 0
+        isProgressivelyLoading = true
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let urls = imageURLs(in: folderURL, options: options)
-            DispatchQueue.main.async {
-                guard let self, self.openGeneration == generation else { return }
-                self.finishOpen(url, urls: urls)
+            enumerateImageURLBatches(in: folderURL, options: options) { batch, finished in
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.openGeneration == generation else { return }
+                    self.receiveImageBatch(batch, sourceURL: url, finished: finished)
+                }
             }
         }
     }
 
     private func finishOpen(_ url: URL, urls: [URL]) {
+        isProgressivelyLoading = false
         guard !urls.isEmpty else {
             images = []
             allImages = []
@@ -87,6 +94,42 @@ final class ImageStore: ObservableObject {
             loadCurrent()
         } else {
             applyViewOptions(preserving: url.hasDirectoryPath ? nil : url)
+        }
+    }
+
+    private func receiveImageBatch(_ batch: [URL], sourceURL: URL, finished: Bool) {
+        if !batch.isEmpty {
+            allImages.append(contentsOf: batch)
+
+            if usesDefaultViewOptions {
+                let wasEmpty = images.isEmpty
+                images.append(contentsOf: batch)
+                if wasEmpty {
+                    if !sourceURL.hasDirectoryPath,
+                       let index = images.firstIndex(where: { $0.standardizedFileURL == sourceURL.standardizedFileURL }) {
+                        currentIndex = index
+                    } else {
+                        currentIndex = 0
+                    }
+                    loadCurrent()
+                } else {
+                    updateLoadingStatus()
+                }
+            } else {
+                applyViewOptions(preserving: currentURL)
+            }
+        }
+
+        if finished {
+            isProgressivelyLoading = false
+            if images.isEmpty {
+                currentImage = nil
+                status = "No supported images found"
+            } else {
+                loadCurrent()
+            }
+        } else if currentImage == nil {
+            status = "Loading images..."
         }
     }
 
@@ -158,7 +201,16 @@ final class ImageStore: ObservableObject {
     private func loadCurrent() {
         guard let currentURL else { return }
         currentImage = NSImage(contentsOf: currentURL)
-        status = "\(currentURL.lastPathComponent)  (\(currentIndex + 1) of \(images.count))"
+        let loadingSuffix = isProgressivelyLoading ? ", still scanning..." : ""
+        status = "\(currentURL.lastPathComponent)  (\(currentIndex + 1) of \(images.count)\(loadingSuffix))"
+    }
+
+    private func updateLoadingStatus() {
+        if let currentURL {
+            status = "\(currentURL.lastPathComponent)  (\(currentIndex + 1) of \(images.count), still scanning...)"
+        } else {
+            status = "Loaded \(images.count) images, still scanning..."
+        }
     }
 
     private var folderScanOptions: FolderScanOptions {

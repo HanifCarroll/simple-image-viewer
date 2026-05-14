@@ -71,6 +71,47 @@ func imageURLs(in summary: FolderScanSummary, options: FolderScanOptions) -> [UR
         .sorted { relativePath($0, from: summary.rootURL).localizedStandardCompare(relativePath($1, from: summary.rootURL)) == .orderedAscending }
 }
 
+func enumerateImageURLBatches(
+    in folderURL: URL,
+    options: FolderScanOptions = .nonRecursive,
+    batchSize: Int = 64,
+    onBatch: ([URL], Bool) -> Void
+) {
+    let maxDepth = options.effectiveMaxDepth
+    var batch: [URL] = []
+    var totalCount = 0
+
+    func flush(finished: Bool) {
+        guard !batch.isEmpty || finished else { return }
+        let currentBatch = batch
+        batch.removeAll(keepingCapacity: true)
+        onBatch(currentBatch, finished)
+    }
+
+    func collect(in folderURL: URL, depth: Int) {
+        guard options.maxImages <= 0 || totalCount < options.maxImages else { return }
+
+        let entries = directoryEntries(in: folderURL)
+        for file in entries where isSupportedImage(file) {
+            guard options.maxImages <= 0 || totalCount < options.maxImages else { return }
+            batch.append(file)
+            totalCount += 1
+            if batch.count >= batchSize {
+                flush(finished: false)
+            }
+        }
+
+        guard depth < maxDepth else { return }
+
+        for folder in entries where isDirectory(folder) {
+            collect(in: folder, depth: depth + 1)
+        }
+    }
+
+    collect(in: folderURL, depth: 0)
+    flush(finished: true)
+}
+
 func scanFolder(_ folderURL: URL) -> FolderScanSummary {
     var foldersByDepth: [Int: Int] = [:]
     var imagesByDepth: [Int: Int] = [:]
