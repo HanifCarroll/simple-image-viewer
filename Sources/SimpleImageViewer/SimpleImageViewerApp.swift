@@ -4,7 +4,6 @@ import SwiftUI
 @main
 struct SimpleImageViewerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @FocusedValue(\.activeImageStore) private var activeImageStore
 
     var body: some Scene {
         WindowGroup("Simple Image Viewer") {
@@ -17,23 +16,19 @@ struct SimpleImageViewerApp: App {
             CommandGroup(replacing: .newItem) {
                 Button("New Viewer") { appDelegate.openNewViewerWindow() }
                     .keyboardShortcut("n", modifiers: [.command])
-                Button("Open...") { activeImageStore?.openPanel() ?? ActiveViewerStore.shared.store?.openPanel() ?? appDelegate.openPanelInNewWindow() }
+                Button("Open...") { appDelegate.openActiveWindowPanel() }
                     .keyboardShortcut("o", modifiers: [.command])
             }
             CommandMenu("Navigate") {
-                Button("Previous Image") { activeImageStore?.navigate(-1) ?? appDelegate.navigateActiveWindow(-1) }
+                Button("Previous Image") { appDelegate.navigateActiveWindow(-1) }
                     .keyboardShortcut(.leftArrow, modifiers: [])
-                Button("Next Image") { activeImageStore?.navigate(1) ?? appDelegate.navigateActiveWindow(1) }
+                Button("Next Image") { appDelegate.navigateActiveWindow(1) }
                     .keyboardShortcut(.rightArrow, modifiers: [])
                 Divider()
-                Button("First Image") { activeImageStore?.select(0) ?? appDelegate.selectFirstInActiveWindow() }
+                Button("First Image") { appDelegate.selectFirstInActiveWindow() }
                     .keyboardShortcut(.leftArrow, modifiers: [.command])
                 Button("Last Image") {
-                    if let activeImageStore {
-                        activeImageStore.select(activeImageStore.images.count - 1)
-                    } else {
-                        appDelegate.selectLastInActiveWindow()
-                    }
+                    appDelegate.selectLastInActiveWindow()
                 }
                     .keyboardShortcut(.rightArrow, modifiers: [.command])
             }

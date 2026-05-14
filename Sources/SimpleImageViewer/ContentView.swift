@@ -11,7 +11,6 @@ struct ContentView: View {
             thumbnailRail
         }
         .background(.regularMaterial)
-        .focusedValue(\.activeImageStore, store)
         .background(ViewerWindowStoreBinder(store: store))
     }
 

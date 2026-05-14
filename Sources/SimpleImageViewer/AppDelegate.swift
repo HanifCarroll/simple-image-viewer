@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingURLs: [URL] = []
     private var viewerWindows: [NSWindowController] = []
     private var usedInitialWindowForExternalOpen = false
+    private var keyEventMonitor: Any?
 
     override init() {
         super.init()
@@ -24,6 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        keyEventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleKeyDown(event)
+        }
         DispatchQueue.main.async {
             self.fitWindowsToVisibleScreen()
         }
@@ -56,21 +60,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.openPanel()
     }
 
+    func openActiveWindowPanel() {
+        if let store = activeStore() {
+            store.openPanel()
+        } else {
+            openPanelInNewWindow()
+        }
+    }
+
     func openNewViewerWindow() {
         openIndependentWindow(store: ImageStore())
     }
 
     func navigateActiveWindow(_ delta: Int) {
-        ActiveViewerStore.shared.store?.navigate(delta)
+        activeStore()?.navigate(delta)
     }
 
     func selectFirstInActiveWindow() {
-        ActiveViewerStore.shared.store?.select(0)
+        activeStore()?.select(0)
     }
 
     func selectLastInActiveWindow() {
-        guard let store = ActiveViewerStore.shared.store else { return }
+        guard let store = activeStore() else { return }
         store.select(store.images.count - 1)
+    }
+
+    deinit {
+        if let keyEventMonitor {
+            NSEvent.removeMonitor(keyEventMonitor)
+        }
     }
 
     private func openURLs(_ urls: [URL]) {
@@ -115,6 +133,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    private func activeStore() -> ImageStore? {
+        ActiveViewerStore.shared.store(for: NSApp.keyWindow ?? NSApp.mainWindow)
+    }
+
+    private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty else {
+            return event
+        }
+
+        switch event.keyCode {
+        case 123:
+            ActiveViewerStore.shared.store(for: event.window ?? NSApp.keyWindow)?.navigate(-1)
+            return nil
+        case 124:
+            ActiveViewerStore.shared.store(for: event.window ?? NSApp.keyWindow)?.navigate(1)
+            return nil
+        default:
+            return event
+        }
+    }
+
     private func fitWindowsToVisibleScreen() {
         guard let visibleFrame = NSScreen.main?.visibleFrame else { return }
         for window in NSApp.windows where window.isVisible {
@@ -148,6 +187,7 @@ private extension AppDelegate {
 extension AppDelegate: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+        ActiveViewerStore.shared.unregister(window: window)
         viewerWindows.removeAll { $0.window === window }
     }
 }

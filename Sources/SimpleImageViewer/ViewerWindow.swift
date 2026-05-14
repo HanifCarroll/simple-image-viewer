@@ -24,9 +24,47 @@ final class ViewerWindow: NSWindow {
 final class ActiveViewerStore {
     static let shared = ActiveViewerStore()
 
+    private final class StoreBox {
+        weak var store: ImageStore?
+
+        init(_ store: ImageStore) {
+            self.store = store
+        }
+    }
+
+    private var stores: [ObjectIdentifier: StoreBox] = [:]
     weak var store: ImageStore?
 
     private init() {}
+
+    func register(_ store: ImageStore, for window: NSWindow?) {
+        guard let window else { return }
+        stores[ObjectIdentifier(window)] = StoreBox(store)
+        (window as? ViewerWindow)?.store = store
+        if window.isKeyWindow || self.store == nil {
+            self.store = store
+        }
+    }
+
+    func activate(_ store: ImageStore) {
+        self.store = store
+    }
+
+    func store(for window: NSWindow?) -> ImageStore? {
+        if let window,
+           let store = stores[ObjectIdentifier(window)]?.store {
+            self.store = store
+            return store
+        }
+        return store
+    }
+
+    func unregister(window: NSWindow) {
+        stores.removeValue(forKey: ObjectIdentifier(window))
+        if store == nil {
+            store = nil
+        }
+    }
 }
 
 struct ViewerWindowStoreBinder: NSViewRepresentable {
@@ -38,10 +76,7 @@ struct ViewerWindowStoreBinder: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async {
-            if view.window?.isKeyWindow == true {
-                ActiveViewerStore.shared.store = store
-            }
-            (view.window as? ViewerWindow)?.store = store
+            ActiveViewerStore.shared.register(store, for: view.window)
             context.coordinator.bind(to: view.window, store: store)
         }
     }
@@ -66,7 +101,7 @@ struct ViewerWindowStoreBinder: NSViewRepresentable {
                 object: window,
                 queue: .main
             ) { _ in
-                ActiveViewerStore.shared.store = store
+                ActiveViewerStore.shared.activate(store)
             }
         }
 
