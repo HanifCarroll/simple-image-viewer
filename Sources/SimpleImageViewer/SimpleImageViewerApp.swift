@@ -5,6 +5,8 @@ import SwiftUI
 struct SimpleImageViewerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = ImageStore()
+    @FocusedValue(\.activeImageStore) private var activeImageStore
+    @State private var handledLaunchArgument = false
 
     var body: some Scene {
         WindowGroup("Simple Image Viewer") {
@@ -12,26 +14,27 @@ struct SimpleImageViewerApp: App {
                 .frame(minWidth: 760, idealWidth: 1100, minHeight: 520, idealHeight: 760)
                 .onAppear {
                     appDelegate.attach(store)
-                    if let path = CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") }) {
+                    if !handledLaunchArgument,
+                       let path = CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") }) {
+                        handledLaunchArgument = true
                         store.open(URL(fileURLWithPath: path))
                     }
                 }
         }
         .defaultSize(width: 1100, height: 760)
         .commands {
-            CommandGroup(after: .newItem) {
-                Button("Open...") { store.openPanel() }
+            CommandGroup(replacing: .newItem) {
+                Button("Open...") { activeImageStore?.openPanel() ?? store.openPanel() }
                     .keyboardShortcut("o", modifiers: [.command])
             }
             CommandMenu("Navigate") {
-                Button("Previous Image") { store.navigate(-1) }
-                    .keyboardShortcut(.leftArrow, modifiers: [])
-                Button("Next Image") { store.navigate(1) }
-                    .keyboardShortcut(.rightArrow, modifiers: [])
-                Divider()
-                Button("First Image") { store.select(0) }
+                Button("First Image") { activeImageStore?.select(0) }
                     .keyboardShortcut(.leftArrow, modifiers: [.command])
-                Button("Last Image") { store.select(store.images.count - 1) }
+                Button("Last Image") {
+                    if let activeImageStore {
+                        activeImageStore.select(activeImageStore.images.count - 1)
+                    }
+                }
                     .keyboardShortcut(.rightArrow, modifiers: [.command])
             }
         }

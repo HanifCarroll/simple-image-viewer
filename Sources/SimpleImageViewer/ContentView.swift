@@ -11,6 +11,8 @@ struct ContentView: View {
             thumbnailRail
         }
         .background(.regularMaterial)
+        .focusedValue(\.activeImageStore, store)
+        .background(KeyCommandView(store: store))
     }
 
     private var toolbar: some View {

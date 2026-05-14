@@ -1,14 +1,17 @@
 import AppKit
+import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private weak var store: ImageStore?
-    private var pendingURL: URL?
+    private var pendingURLs: [URL] = []
+    private var viewerWindows: [NSWindowController] = []
+    private var usedInitialWindowForExternalOpen = false
 
     func attach(_ store: ImageStore) {
         self.store = store
-        if let pendingURL {
-            store.open(pendingURL)
-            self.pendingURL = nil
+        if !pendingURLs.isEmpty {
+            openURLs(pendingURLs)
+            pendingURLs.removeAll()
         }
     }
 
@@ -24,29 +27,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
-        let url = URL(fileURLWithPath: filename)
-        if let store {
-            if store.hasOpenedContent {
-                openInDisconnectedInstance(url)
-                return true
-            }
-            store.open(url)
-        } else {
-            pendingURL = url
-        }
+        openURLs([URL(fileURLWithPath: filename)])
         return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        openURLs(filenames.map { URL(fileURLWithPath: $0) })
+        sender.reply(toOpenOrPrint: .success)
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        openURLs(urls)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
 
-    private func openInDisconnectedInstance(_ url: URL) {
-        guard let executableURL = Bundle.main.executableURL else { return }
-        let process = Process()
-        process.executableURL = executableURL
-        process.arguments = [url.path]
-        try? process.run()
+    private func openURLs(_ urls: [URL]) {
+        guard let store else {
+            pendingURLs.append(contentsOf: urls)
+            return
+        }
+
+        var urlsToOpen = urls
+        if !store.hasOpenedContent, !usedInitialWindowForExternalOpen, let firstURL = urlsToOpen.first {
+            usedInitialWindowForExternalOpen = true
+            store.open(firstURL)
+            urlsToOpen.removeFirst()
+        }
+
+        for url in urlsToOpen {
+            openInIndependentWindow(url)
+        }
+    }
+
+    private func openInIndependentWindow(_ url: URL) {
+        let store = ImageStore()
+        let contentView = ContentView(store: store)
+            .frame(minWidth: 760, idealWidth: 1100, minHeight: 520, idealHeight: 760)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Simple Image Viewer"
+        window.contentViewController = NSHostingController(rootView: contentView)
+        window.delegate = self
+        window.center()
+
+        let controller = NSWindowController(window: window)
+        viewerWindows.append(controller)
+        controller.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        store.open(url)
     }
 
     private func fitWindowsToVisibleScreen() {
@@ -67,5 +103,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let y = visibleFrame.midY - height / 2
             window.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
         }
+    }
+}
+
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        viewerWindows.removeAll { $0.window === window }
     }
 }
