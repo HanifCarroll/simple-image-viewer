@@ -74,6 +74,7 @@ final class FolderOpenAccessoryView: NSView {
     private let levelsLabel = NSTextField(wrappingLabelWithString: "")
     private let depthRow = NSStackView()
     private var scanGeneration = 0
+    private var scanCancellation: FolderDiscoveryCancellation?
 
     init(model: FolderOpenAccessoryModel) {
         self.model = model
@@ -87,21 +88,25 @@ final class FolderOpenAccessoryView: NSView {
     }
 
     func updateSelection(_ url: URL?) {
+        scanCancellation?.cancel()
         scanGeneration += 1
         let generation = scanGeneration
         guard let url else {
+            scanCancellation = nil
             model.clearSelection()
             refresh()
             return
         }
 
+        let cancellation = FolderDiscoveryCancellation()
+        scanCancellation = cancellation
         let folderURL = Self.folderURL(for: url)
         summaryLabel.stringValue = "Scanning folder..."
         levelsLabel.stringValue = ""
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let summary = scanFolder(folderURL)
+            let summary = scanFolder(folderURL, cancellation: cancellation)
             DispatchQueue.main.async {
-                guard let self, self.scanGeneration == generation else { return }
+                guard let self, self.scanGeneration == generation, !summary.wasCancelled else { return }
                 self.model.updateSummary(summary)
                 self.refresh()
             }

@@ -33,6 +33,7 @@ final class ImageStore: ObservableObject {
     }
     private var openGeneration = 0
     private var isProgressivelyLoading = false
+    private var openCancellation: FolderDiscoveryCancellation?
 
     var currentURL: URL? {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
@@ -59,6 +60,9 @@ final class ImageStore: ObservableObject {
             folderURL = url.deletingLastPathComponent()
         }
 
+        openCancellation?.cancel()
+        let cancellation = FolderDiscoveryCancellation()
+        openCancellation = cancellation
         openGeneration += 1
         let generation = openGeneration
         let options = folderScanOptions
@@ -70,7 +74,7 @@ final class ImageStore: ObservableObject {
         isProgressivelyLoading = true
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            enumerateImageURLBatches(in: folderURL, options: options) { batch, finished in
+            enumerateImageURLBatches(in: folderURL, options: options, cancellation: cancellation) { batch, finished in
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.openGeneration == generation else { return }
                     self.receiveImageBatch(batch, sourceURL: url, finished: finished)
