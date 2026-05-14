@@ -87,24 +87,40 @@ struct ContentView: View {
     }
 
     private var thumbnailRail: some View {
-        ScrollView(.horizontal) {
-            LazyHStack(spacing: 10) {
-                ForEach(store.images.indices, id: \.self) { index in
-                    ThumbnailButton(
-                        url: store.images[index],
-                        selected: index == store.currentIndex,
-                        action: { store.select(index) }
-                    )
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 10) {
+                    ForEach(store.images.indices, id: \.self) { index in
+                        ThumbnailButton(
+                            url: store.images[index],
+                            selected: index == store.currentIndex,
+                            action: { store.select(index) }
+                        )
+                        .id(index)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 16)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 16)
+            .scrollIndicators(.hidden)
+            .frame(height: 112)
+            .fixedSize(horizontal: false, vertical: true)
+            .background(.bar)
+            .onChange(of: store.currentIndex) { _, index in
+                scrollToSelectedThumbnail(index, with: proxy)
+            }
+            .onChange(of: store.images.count) { _, _ in
+                scrollToSelectedThumbnail(store.currentIndex, with: proxy)
+            }
         }
-        .scrollIndicators(.hidden)
-        .frame(height: 112)
-        .fixedSize(horizontal: false, vertical: true)
-        .background(.bar)
+    }
+
+    private func scrollToSelectedThumbnail(_ index: Int, with proxy: ScrollViewProxy) {
+        guard store.images.indices.contains(index) else { return }
+        withAnimation(.easeOut(duration: 0.12)) {
+            proxy.scrollTo(index, anchor: .center)
+        }
     }
 }
 
