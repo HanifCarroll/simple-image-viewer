@@ -33,6 +33,24 @@ swiftc -parse-as-library "$ROOT_DIR"/Sources/SimpleImageViewer/*.swift \
   -framework AppKit \
   -framework UniformTypeIdentifiers
 
+if [[ -f "$ROOT_DIR/Assets/AppIcon.png" ]]; then
+  ICONSET="$DIST_DIR/AppIcon.iconset"
+  rm -rf "$ICONSET"
+  mkdir -p "$ICONSET"
+  sips -z 16 16 "$ROOT_DIR/Assets/AppIcon.png" --out "$ICONSET/icon_16x16.png" >/dev/null
+  sips -z 32 32 "$ROOT_DIR/Assets/AppIcon.png" --out "$ICONSET/icon_16x16@2x.png" >/dev/null
+  sips -z 32 32 "$ROOT_DIR/Assets/AppIcon.png" --out "$ICONSET/icon_32x32.png" >/dev/null
+  sips -z 64 64 "$ROOT_DIR/Assets/AppIcon.png" --out "$ICONSET/icon_32x32@2x.png" >/dev/null
+  sips -z 128 128 "$ROOT_DIR/Assets/AppIcon.png" --out "$ICONSET/icon_128x128.png" >/dev/null
+  sips -z 256 256 "$ROOT_DIR/Assets/AppIcon.png" --out "$ICONSET/icon_128x128@2x.png" >/dev/null
+  sips -z 256 256 "$ROOT_DIR/Assets/AppIcon.png" --out "$ICONSET/icon_256x256.png" >/dev/null
+  sips -z 512 512 "$ROOT_DIR/Assets/AppIcon.png" --out "$ICONSET/icon_256x256@2x.png" >/dev/null
+  sips -z 512 512 "$ROOT_DIR/Assets/AppIcon.png" --out "$ICONSET/icon_512x512.png" >/dev/null
+  sips -z 1024 1024 "$ROOT_DIR/Assets/AppIcon.png" --out "$ICONSET/icon_512x512@2x.png" >/dev/null
+  iconutil -c icns "$ICONSET" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+  rm -rf "$ICONSET"
+fi
+
 cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -46,6 +64,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleVersion</key>
