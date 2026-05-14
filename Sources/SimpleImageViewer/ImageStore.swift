@@ -44,11 +44,7 @@ final class ImageStore: ObservableObject {
     }
 
     func open(_ url: URL) {
-        openCancellation?.cancel()
-        let cancellation = FolderDiscoveryCancellation()
-        openCancellation = cancellation
-        openGeneration += 1
-        let generation = openGeneration
+        let (cancellation, generation) = beginOpenOperation()
         let plan = ImageOpeningService.plan(for: url, options: folderScanOptions, cancellation: cancellation)
         resetForOpening()
 
@@ -56,6 +52,20 @@ final class ImageStore: ObservableObject {
             guard let self, self.openGeneration == generation else { return }
             self.receiveImageBatch(batch, sourceURL: plan.sourceURL, finished: finished)
         }
+    }
+
+    private func beginOpenOperation() -> (FolderDiscoveryCancellation, Int) {
+        openCancellation?.cancel()
+        let cancellation = FolderDiscoveryCancellation()
+        openCancellation = cancellation
+        openGeneration += 1
+        return (cancellation, openGeneration)
+    }
+
+    private func invalidateOpenOperation() {
+        openCancellation?.cancel()
+        openCancellation = nil
+        openGeneration += 1
     }
 
     private func resetForOpening() {
@@ -184,6 +194,7 @@ final class ImageStore: ObservableObject {
             maxFolderDepth = accessoryModel.maxFolderDepth
             maxPhotoCount = accessoryModel.maxPhotoCount
             if let summary = accessoryModel.summary, summary.rootURL.standardizedFileURL == folderURL.standardizedFileURL {
+                invalidateOpenOperation()
                 finishOpen(url, urls: imageURLs(in: summary, options: folderScanOptions))
             } else {
                 open(url)

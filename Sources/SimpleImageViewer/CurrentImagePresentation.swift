@@ -1,24 +1,6 @@
-import AppKit
-
-struct CurrentImageDisplay {
-    let image: NSImage?
-    let status: String
-}
+import Foundation
 
 enum CurrentImagePresenter {
-    static func loadCurrentImage(
-        at url: URL,
-        index: Int,
-        visibleCount: Int,
-        isProgressivelyLoading: Bool
-    ) -> CurrentImageDisplay {
-        let image = NSImage(contentsOf: url)
-        return CurrentImageDisplay(
-            image: image,
-            status: status(for: url, index: index, visibleCount: visibleCount, isProgressivelyLoading: isProgressivelyLoading)
-        )
-    }
-
     static func loadingStatus(
         for url: URL?,
         index: Int,

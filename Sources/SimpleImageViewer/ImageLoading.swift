@@ -110,6 +110,7 @@ final class ThumbnailCache {
     private let lock = NSLock()
     private var operations: [URL: ThumbnailOperation] = [:]
     private var waiters: [URL: [(NSImage?) -> Void]] = [:]
+    private var nextOperationID = 0
 
     private init() {
         cache.countLimit = 600
@@ -159,6 +160,8 @@ final class ThumbnailCache {
             return
         }
 
+        nextOperationID += 1
+        let operationID = nextOperationID
         var operation: BlockOperation?
         let task = ImageLoadingTask {
             operation?.cancel()
@@ -168,7 +171,7 @@ final class ThumbnailCache {
 
             let thumbnail = Self.makeThumbnail(for: url)
             guard task?.isCancelled == false else {
-                self.finishLoading(url)
+                self.finishLoading(url, operationID: operationID)
                 return
             }
 
@@ -176,7 +179,7 @@ final class ThumbnailCache {
                 self.cache.setObject(thumbnail, forKey: url as NSURL)
             }
 
-            let callbacks = self.finishLoading(url)
+            let callbacks = self.finishLoading(url, operationID: operationID)
             guard !callbacks.isEmpty else { return }
 
             DispatchQueue.main.async {
@@ -185,7 +188,7 @@ final class ThumbnailCache {
         }
         block.queuePriority = priority
         operation = block
-        operations[url] = ThumbnailOperation(operation: block, task: task)
+        operations[url] = ThumbnailOperation(id: operationID, operation: block, task: task)
         if let completion {
             waiters[url, default: []].append(completion)
         }
@@ -209,10 +212,15 @@ final class ThumbnailCache {
     }
 
     @discardableResult
-    private func finishLoading(_ url: URL) -> [(NSImage?) -> Void] {
+    private func finishLoading(_ url: URL, operationID: Int) -> [(NSImage?) -> Void] {
         lock.lock()
-        let callbacks = waiters.removeValue(forKey: url) ?? []
-        operations.removeValue(forKey: url)
+        let callbacks: [(NSImage?) -> Void]
+        if operations[url]?.id == operationID {
+            callbacks = waiters.removeValue(forKey: url) ?? []
+            operations.removeValue(forKey: url)
+        } else {
+            callbacks = []
+        }
         lock.unlock()
         return callbacks
     }
@@ -239,6 +247,7 @@ final class ThumbnailCache {
 }
 
 private struct ThumbnailOperation {
+    let id: Int
     let operation: BlockOperation
     let task: ImageLoadingTask
 }
