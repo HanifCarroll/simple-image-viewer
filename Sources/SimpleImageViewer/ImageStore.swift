@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 import UniformTypeIdentifiers
 
 final class ImageStore: ObservableObject {
@@ -64,11 +63,16 @@ final class ImageStore: ObservableObject {
             maxFolderDepth: maxFolderDepth,
             maxPhotoCount: maxPhotoCount
         )
-        let panelDelegate = FolderOpenPanelDelegate(model: accessoryModel)
+        let accessoryView = FolderOpenAccessoryView(model: accessoryModel)
+        let panelDelegate = FolderOpenPanelDelegate(accessoryView: accessoryView)
         panel.delegate = panelDelegate
-        panel.accessoryView = NSHostingView(rootView: FolderOpenAccessoryView(model: accessoryModel))
-        accessoryModel.updateSelection(panel.url ?? panel.directoryURL)
-        if panel.runModal() == .OK, let url = panel.url {
+        panel.accessoryView = accessoryView
+        panel.setContentSize(NSSize(width: 1_120, height: 720))
+        accessoryView.updateSelection(panel.url ?? panel.directoryURL)
+        let result = withExtendedLifetime(panelDelegate) {
+            panel.runModal()
+        }
+        if result == .OK, let url = panel.url {
             includeSubfolders = accessoryModel.includeSubfolders
             maxFolderDepth = accessoryModel.maxFolderDepth
             maxPhotoCount = accessoryModel.maxPhotoCount

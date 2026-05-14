@@ -1,11 +1,10 @@
 import AppKit
-import SwiftUI
 
-final class FolderOpenAccessoryModel: ObservableObject {
-    @Published var includeSubfolders: Bool
-    @Published var maxFolderDepth: Int
-    @Published var maxPhotoCount: Int
-    @Published var summary: FolderScanSummary?
+final class FolderOpenAccessoryModel {
+    var includeSubfolders: Bool
+    var maxFolderDepth: Int
+    var maxPhotoCount: Int
+    var summary: FolderScanSummary?
 
     init(includeSubfolders: Bool, maxFolderDepth: Int, maxPhotoCount: Int) {
         self.includeSubfolders = includeSubfolders
@@ -21,10 +20,15 @@ final class FolderOpenAccessoryModel: ObservableObject {
         deepestLevel > 0
     }
 
+    var selectedFolderImageCount: Int {
+        summary?.levels.first(where: { $0.depth == 0 })?.imageCount ?? 0
+    }
+
     var includedImageCount: Int {
         guard let summary else { return 0 }
+        let maxDepth = includeSubfolders ? maxFolderDepth : 0
         return summary.levels
-            .filter { $0.depth <= (includeSubfolders ? maxFolderDepth : 0) }
+            .filter { $0.depth <= maxDepth }
             .reduce(0) { $0 + $1.imageCount }
     }
 
@@ -47,6 +51,7 @@ final class FolderOpenAccessoryModel: ObservableObject {
     func clampOptions() {
         guard hasSubfolders else {
             includeSubfolders = false
+            maxFolderDepth = 1
             return
         }
 
@@ -56,159 +61,172 @@ final class FolderOpenAccessoryModel: ObservableObject {
     }
 }
 
-struct FolderOpenAccessoryView: View {
-    @ObservedObject var model: FolderOpenAccessoryModel
+final class FolderOpenAccessoryView: NSView {
+    let model: FolderOpenAccessoryModel
 
-    private var includeSubfoldersBinding: Binding<Bool> {
-        Binding(
-            get: { model.includeSubfolders },
-            set: { enabled in
-                model.includeSubfolders = enabled && model.hasSubfolders
-                model.clampOptions()
-            }
-        )
+    private let includeSubfoldersButton = NSButton(checkboxWithTitle: "Include subfolders", target: nil, action: nil)
+    private let depthLabel = NSTextField(labelWithString: "Depth")
+    private let depthValueLabel = NSTextField(labelWithString: "1")
+    private let depthStepper = NSStepper()
+    private let depthHelpLabel = NSTextField(labelWithString: "")
+    private let photoLimitValueLabel = NSTextField(labelWithString: "No limit")
+    private let photoLimitStepper = NSStepper()
+    private let summaryLabel = NSTextField(wrappingLabelWithString: "Select a folder to preview image counts.")
+    private let levelsLabel = NSTextField(wrappingLabelWithString: "")
+    private let depthRow = NSStackView()
+
+    init(model: FolderOpenAccessoryModel) {
+        self.model = model
+        super.init(frame: NSRect(x: 0, y: 0, width: 720, height: 120))
+        buildView()
+        refresh()
     }
 
-    private var folderDepthBinding: Binding<Int> {
-        Binding(
-            get: { min(max(model.maxFolderDepth, 1), max(model.deepestLevel, 1)) },
-            set: { model.maxFolderDepth = min(max($0, 1), model.deepestLevel) }
-        )
+    required init?(coder: NSCoder) {
+        nil
     }
 
-    private var photoLimitLabel: String {
-        model.maxPhotoCount <= 0 ? "No limit" : model.maxPhotoCount.formatted()
+    func updateSelection(_ url: URL?) {
+        model.updateSelection(url)
+        refresh()
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            options
+    private func buildView() {
+        translatesAutoresizingMaskIntoConstraints = false
+        widthAnchor.constraint(equalToConstant: 720).isActive = true
 
-            if let summary = model.summary {
-                summaryView(summary)
-            } else {
-                Text("Select a folder to preview image counts.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        includeSubfoldersButton.target = self
+        includeSubfoldersButton.action = #selector(includeSubfoldersChanged)
+
+        depthStepper.target = self
+        depthStepper.action = #selector(depthChanged)
+        depthStepper.minValue = 1
+        depthStepper.increment = 1
+
+        photoLimitStepper.target = self
+        photoLimitStepper.action = #selector(photoLimitChanged)
+        photoLimitStepper.minValue = 0
+        photoLimitStepper.maxValue = 100_000
+        photoLimitStepper.increment = 100
+
+        for label in [summaryLabel, levelsLabel, depthHelpLabel] {
+            label.textColor = .secondaryLabelColor
+            label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         }
-        .padding(12)
-        .frame(width: 460)
+        levelsLabel.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+
+        depthValueLabel.alignment = .right
+        depthValueLabel.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        depthValueLabel.widthAnchor.constraint(equalToConstant: 34).isActive = true
+
+        photoLimitValueLabel.alignment = .right
+        photoLimitValueLabel.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        photoLimitValueLabel.widthAnchor.constraint(equalToConstant: 78).isActive = true
+
+        depthRow.orientation = .horizontal
+        depthRow.alignment = .centerY
+        depthRow.spacing = 8
+        depthRow.addArrangedSubview(depthLabel)
+        depthRow.addArrangedSubview(depthValueLabel)
+        depthRow.addArrangedSubview(depthStepper)
+        depthRow.addArrangedSubview(depthHelpLabel)
+
+        let photoRow = NSStackView()
+        photoRow.orientation = .horizontal
+        photoRow.alignment = .centerY
+        photoRow.spacing = 8
+        photoRow.addArrangedSubview(NSTextField(labelWithString: "Photo limit"))
+        photoRow.addArrangedSubview(photoLimitValueLabel)
+        photoRow.addArrangedSubview(photoLimitStepper)
+        photoRow.addArrangedSubview(NSTextField(labelWithString: "0 means no limit"))
+        photoRow.arrangedSubviews.last?.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let controlsRow = NSStackView()
+        controlsRow.orientation = .horizontal
+        controlsRow.alignment = .centerY
+        controlsRow.spacing = 24
+        controlsRow.addArrangedSubview(includeSubfoldersButton)
+        controlsRow.addArrangedSubview(depthRow)
+        controlsRow.addArrangedSubview(photoRow)
+
+        let root = NSStackView()
+        root.orientation = .vertical
+        root.alignment = .leading
+        root.spacing = 8
+        root.translatesAutoresizingMaskIntoConstraints = false
+        root.addArrangedSubview(controlsRow)
+        root.addArrangedSubview(summaryLabel)
+        root.addArrangedSubview(levelsLabel)
+        addSubview(root)
+
+        NSLayoutConstraint.activate([
+            root.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            root.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            root.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+            root.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10)
+        ])
     }
 
-    private var options: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("Include subfolders", isOn: includeSubfoldersBinding)
-                .disabled(!model.hasSubfolders)
+    private func refresh() {
+        includeSubfoldersButton.state = model.includeSubfolders ? .on : .off
+        includeSubfoldersButton.isEnabled = model.hasSubfolders
 
-            if model.summary != nil && !model.hasSubfolders {
-                Text("No subfolders found")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        depthStepper.maxValue = Double(max(model.deepestLevel, 1))
+        depthStepper.integerValue = min(max(model.maxFolderDepth, 1), max(model.deepestLevel, 1))
+        depthValueLabel.stringValue = "\(depthStepper.integerValue)"
+        depthHelpLabel.stringValue = model.hasSubfolders ? "1-\(model.deepestLevel)" : ""
+        depthRow.isHidden = !model.includeSubfolders
 
-            if model.includeSubfolders {
-                controlRow(label: "Folder levels") {
-                    Stepper(value: folderDepthBinding, in: 1...model.deepestLevel) {
-                        Text("\(folderDepthBinding.wrappedValue)")
-                            .monospacedDigit()
-                            .frame(width: 72, alignment: .trailing)
-                    }
-                } help: {
-                    Text("1-\(model.deepestLevel) available")
+        photoLimitStepper.integerValue = model.maxPhotoCount
+        photoLimitValueLabel.stringValue = model.maxPhotoCount <= 0 ? "No limit" : model.maxPhotoCount.formatted()
+
+        guard let summary = model.summary else {
+            summaryLabel.stringValue = "Select a folder to preview image counts."
+            levelsLabel.stringValue = ""
+            return
+        }
+
+        if model.includeSubfolders {
+            summaryLabel.stringValue = "Will load \(model.cappedImageCount.formatted()) of \(model.includedImageCount.formatted()) included images."
+            levelsLabel.stringValue = summary.levels
+                .map { level in
+                    let included = level.depth <= model.maxFolderDepth ? "yes" : "no"
+                    return "L\(level.depth) \(level.imageCount.formatted()) img / \(level.folderCount.formatted()) folders \(included)"
                 }
-            }
-
-            controlRow(label: "Photo limit") {
-                Stepper(value: $model.maxPhotoCount, in: 0...100_000, step: 100) {
-                    Text(photoLimitLabel)
-                        .monospacedDigit()
-                        .frame(width: 96, alignment: .trailing)
-                }
-            } help: {
-                Text("0 means no limit")
-            }
+                .joined(separator: "  |  ")
+        } else {
+            summaryLabel.stringValue = "\(model.selectedFolderImageCount.formatted()) images in selected folder."
+            levelsLabel.stringValue = ""
         }
     }
 
-    private func summaryView(_ summary: FolderScanSummary) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("\(summary.totalImages.formatted()) images across \(summary.totalFolders.formatted()) folders")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            if model.includeSubfolders {
-                levelTable(summary)
-            } else {
-                Text("Will load \(model.cappedImageCount.formatted()) of \(model.includedImageCount.formatted()) images in the selected folder.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
+    @objc private func includeSubfoldersChanged() {
+        model.includeSubfolders = includeSubfoldersButton.state == .on && model.hasSubfolders
+        model.clampOptions()
+        refresh()
     }
 
-    private func levelTable(_ summary: FolderScanSummary) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("Level").frame(width: 54, alignment: .leading)
-                Text("Folders").frame(width: 76, alignment: .trailing)
-                Text("Images").frame(width: 76, alignment: .trailing)
-                Text("Included").frame(maxWidth: .infinity, alignment: .trailing)
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-
-            ForEach(summary.levels) { level in
-                let included = level.depth <= model.maxFolderDepth
-                HStack {
-                    Text("\(level.depth)").frame(width: 54, alignment: .leading)
-                    Text(level.folderCount.formatted()).frame(width: 76, alignment: .trailing)
-                    Text(level.imageCount.formatted()).frame(width: 76, alignment: .trailing)
-                    Text(included ? "Yes" : "No")
-                        .foregroundStyle(included ? .primary : .secondary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-                .font(.system(.caption, design: .monospaced))
-            }
-
-            Text("Will load \(model.cappedImageCount.formatted()) of \(model.includedImageCount.formatted()) included images.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
-        }
-        .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+    @objc private func depthChanged() {
+        model.maxFolderDepth = depthStepper.integerValue
+        model.clampOptions()
+        refresh()
     }
 
-    private func controlRow<Control: View, Help: View>(
-        label: String,
-        @ViewBuilder control: () -> Control,
-        @ViewBuilder help: () -> Help
-    ) -> some View {
-        HStack(spacing: 12) {
-            Text(label)
-                .frame(width: 104, alignment: .leading)
-            control()
-                .frame(width: 150, alignment: .leading)
-            Spacer()
-            help()
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 148, alignment: .trailing)
-        }
+    @objc private func photoLimitChanged() {
+        model.maxPhotoCount = photoLimitStepper.integerValue
+        refresh()
     }
 }
 
 final class FolderOpenPanelDelegate: NSObject, NSOpenSavePanelDelegate {
-    private let model: FolderOpenAccessoryModel
+    private let accessoryView: FolderOpenAccessoryView
 
-    init(model: FolderOpenAccessoryModel) {
-        self.model = model
+    init(accessoryView: FolderOpenAccessoryView) {
+        self.accessoryView = accessoryView
     }
 
     func panelSelectionDidChange(_ sender: Any?) {
         guard let panel = sender as? NSOpenPanel else { return }
-        model.updateSelection(panel.url ?? panel.directoryURL)
+        accessoryView.updateSelection(panel.url ?? panel.directoryURL)
     }
 }
