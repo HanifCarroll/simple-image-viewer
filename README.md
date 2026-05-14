@@ -10,6 +10,8 @@ The acronym is **SIV**, pronounced like “sieve.”
 - Open a folder directly.
 - Optionally include images from subfolders, with configurable folder-depth and total-photo limits.
 - Shows folder scan counts by level before loading a folder.
+- Sort loaded images by name, folder, modified date, or file type.
+- Filter loaded images by file type or filename text.
 - Move through images with left and right arrow keys.
 - Shows a horizontal thumbnail rail.
 - Plays animated GIFs.

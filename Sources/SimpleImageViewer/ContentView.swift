@@ -22,10 +22,46 @@ struct ContentView: View {
                 .lineLimit(1)
                 .padding(.leading, 8)
             Spacer()
+            if !store.allImages.isEmpty {
+                viewerOptions
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    private var viewerOptions: some View {
+        HStack(spacing: 8) {
+            Picker("Sort", selection: $store.sortOption) {
+                ForEach(ImageSortOption.allCases) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 150)
+
+            Button(store.sortAscending ? "A-Z" : "Z-A") {
+                store.toggleSortDirection()
+            }
+            .frame(width: 54)
+
+            Picker("Type", selection: $store.typeFilter) {
+                ForEach(store.availableTypeFilters, id: \.self) { type in
+                    Text(type).tag(type)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 90)
+
+            TextField("Filter", text: $store.nameFilter)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 150)
+
+            if !store.nameFilter.isEmpty {
+                Button("Clear") { store.clearNameFilter() }
+            }
+        }
     }
 
     private var imageCanvas: some View {

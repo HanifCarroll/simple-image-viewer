@@ -68,7 +68,6 @@ final class FolderOpenAccessoryView: NSView {
     private let depthLabel = NSTextField(labelWithString: "Depth")
     private let depthValueLabel = NSTextField(labelWithString: "1")
     private let depthStepper = NSStepper()
-    private let depthHelpLabel = NSTextField(labelWithString: "")
     private let photoLimitValueLabel = NSTextField(labelWithString: "No limit")
     private let photoLimitStepper = NSStepper()
     private let summaryLabel = NSTextField(wrappingLabelWithString: "Select a folder to preview image counts.")
@@ -77,7 +76,7 @@ final class FolderOpenAccessoryView: NSView {
 
     init(model: FolderOpenAccessoryModel) {
         self.model = model
-        super.init(frame: NSRect(x: 0, y: 0, width: 720, height: 120))
+        super.init(frame: NSRect(x: 0, y: 0, width: 720, height: 160))
         buildView()
         refresh()
     }
@@ -102,14 +101,16 @@ final class FolderOpenAccessoryView: NSView {
         depthStepper.action = #selector(depthChanged)
         depthStepper.minValue = 1
         depthStepper.increment = 1
+        depthStepper.valueWraps = false
 
         photoLimitStepper.target = self
         photoLimitStepper.action = #selector(photoLimitChanged)
         photoLimitStepper.minValue = 0
         photoLimitStepper.maxValue = 100_000
         photoLimitStepper.increment = 100
+        photoLimitStepper.valueWraps = false
 
-        for label in [summaryLabel, levelsLabel, depthHelpLabel] {
+        for label in [summaryLabel, levelsLabel] {
             label.textColor = .secondaryLabelColor
             label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         }
@@ -129,7 +130,6 @@ final class FolderOpenAccessoryView: NSView {
         depthRow.addArrangedSubview(depthLabel)
         depthRow.addArrangedSubview(depthValueLabel)
         depthRow.addArrangedSubview(depthStepper)
-        depthRow.addArrangedSubview(depthHelpLabel)
 
         let photoRow = NSStackView()
         photoRow.orientation = .horizontal
@@ -138,8 +138,6 @@ final class FolderOpenAccessoryView: NSView {
         photoRow.addArrangedSubview(NSTextField(labelWithString: "Photo limit"))
         photoRow.addArrangedSubview(photoLimitValueLabel)
         photoRow.addArrangedSubview(photoLimitStepper)
-        photoRow.addArrangedSubview(NSTextField(labelWithString: "0 means no limit"))
-        photoRow.arrangedSubviews.last?.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         let controlsRow = NSStackView()
         controlsRow.orientation = .horizontal
@@ -174,7 +172,6 @@ final class FolderOpenAccessoryView: NSView {
         depthStepper.maxValue = Double(max(model.deepestLevel, 1))
         depthStepper.integerValue = min(max(model.maxFolderDepth, 1), max(model.deepestLevel, 1))
         depthValueLabel.stringValue = "\(depthStepper.integerValue)"
-        depthHelpLabel.stringValue = model.hasSubfolders ? "1-\(model.deepestLevel)" : ""
         depthRow.isHidden = !model.includeSubfolders
 
         photoLimitStepper.integerValue = model.maxPhotoCount
@@ -188,12 +185,7 @@ final class FolderOpenAccessoryView: NSView {
 
         if model.includeSubfolders {
             summaryLabel.stringValue = "Will load \(model.cappedImageCount.formatted()) of \(model.includedImageCount.formatted()) included images."
-            levelsLabel.stringValue = summary.levels
-                .map { level in
-                    let included = level.depth <= model.maxFolderDepth ? "yes" : "no"
-                    return "L\(level.depth) \(level.imageCount.formatted()) img / \(level.folderCount.formatted()) folders \(included)"
-                }
-                .joined(separator: "  |  ")
+            levelsLabel.stringValue = levelTableText(for: summary)
         } else {
             summaryLabel.stringValue = "\(model.selectedFolderImageCount.formatted()) images in selected folder."
             levelsLabel.stringValue = ""
@@ -215,6 +207,20 @@ final class FolderOpenAccessoryView: NSView {
     @objc private func photoLimitChanged() {
         model.maxPhotoCount = photoLimitStepper.integerValue
         refresh()
+    }
+
+    private func levelTableText(for summary: FolderScanSummary) -> String {
+        let rows = summary.levels.map { level in
+            let load = level.depth <= model.maxFolderDepth ? "yes" : "no"
+            return String(
+                format: "%5d  %8@  %8@  %@",
+                level.depth,
+                level.imageCount.formatted(),
+                level.folderCount.formatted(),
+                load
+            )
+        }
+        return (["Level    Images   Folders  Load"] + rows).joined(separator: "\n")
     }
 }
 

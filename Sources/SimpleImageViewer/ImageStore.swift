@@ -1,7 +1,17 @@
 import AppKit
 import UniformTypeIdentifiers
 
+enum ImageSortOption: String, CaseIterable, Identifiable {
+    case name = "Name"
+    case folderPath = "Folder"
+    case dateModified = "Date Modified"
+    case fileType = "File Type"
+
+    var id: Self { self }
+}
+
 final class ImageStore: ObservableObject {
+    @Published private(set) var allImages: [URL] = []
     @Published var images: [URL] = []
     @Published var currentIndex = 0
     @Published var currentImage: NSImage?
@@ -9,9 +19,26 @@ final class ImageStore: ObservableObject {
     @Published var includeSubfolders = false
     @Published var maxFolderDepth = 2
     @Published var maxPhotoCount = 0
+    @Published var sortOption: ImageSortOption = .name {
+        didSet { applyViewOptions(preserving: currentURL) }
+    }
+    @Published var sortAscending = true {
+        didSet { applyViewOptions(preserving: currentURL) }
+    }
+    @Published var typeFilter = "All" {
+        didSet { applyViewOptions(preserving: currentURL) }
+    }
+    @Published var nameFilter = "" {
+        didSet { applyViewOptions(preserving: currentURL) }
+    }
 
     var currentURL: URL? {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
+    }
+
+    var availableTypeFilters: [String] {
+        let extensions = Set(allImages.map { normalizedType($0) })
+        return ["All"] + extensions.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
     func open(_ url: URL) {
@@ -31,9 +58,16 @@ final class ImageStore: ObservableObject {
             return
         }
 
-        images = urls
+        allImages = urls
+        applyViewOptions(preserving: url.hasDirectoryPath ? nil : url)
+        guard !images.isEmpty else {
+            currentIndex = 0
+            currentImage = nil
+            status = "No images match the current filters"
+            return
+        }
         if !url.hasDirectoryPath,
-           let index = urls.firstIndex(where: { $0.standardizedFileURL == url.standardizedFileURL }) {
+           let index = images.firstIndex(where: { $0.standardizedFileURL == url.standardizedFileURL }) {
             currentIndex = index
         } else {
             currentIndex = 0
@@ -93,6 +127,14 @@ final class ImageStore: ObservableObject {
         loadCurrent()
     }
 
+    func toggleSortDirection() {
+        sortAscending.toggle()
+    }
+
+    func clearNameFilter() {
+        nameFilter = ""
+    }
+
     private func loadCurrent() {
         guard let currentURL else { return }
         currentImage = NSImage(contentsOf: currentURL)
@@ -105,5 +147,60 @@ final class ImageStore: ObservableObject {
             maxDepth: maxFolderDepth,
             maxImages: maxPhotoCount
         )
+    }
+
+    private func applyViewOptions(preserving preferredURL: URL?) {
+        guard !allImages.isEmpty else { return }
+
+        let filtered = allImages.filter { url in
+            let matchesType = typeFilter == "All" || normalizedType(url) == typeFilter
+            let matchesName = nameFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                url.lastPathComponent.localizedCaseInsensitiveContains(nameFilter)
+            return matchesType && matchesName
+        }
+
+        images = sort(filtered)
+        guard !images.isEmpty else {
+            currentIndex = 0
+            currentImage = nil
+            status = "No images match the current filters"
+            return
+        }
+        if let preferredURL,
+           let index = images.firstIndex(where: { $0.standardizedFileURL == preferredURL.standardizedFileURL }) {
+            currentIndex = index
+        } else {
+            currentIndex = min(currentIndex, max(images.count - 1, 0))
+        }
+        loadCurrent()
+    }
+
+    private func sort(_ urls: [URL]) -> [URL] {
+        urls.sorted { lhs, rhs in
+            let result: ComparisonResult
+            switch sortOption {
+            case .name:
+                result = lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent)
+            case .folderPath:
+                result = lhs.deletingLastPathComponent().path.localizedStandardCompare(rhs.deletingLastPathComponent().path)
+            case .dateModified:
+                result = modificationDate(lhs).compare(modificationDate(rhs))
+            case .fileType:
+                result = normalizedType(lhs).localizedStandardCompare(normalizedType(rhs))
+            }
+
+            if result == .orderedSame {
+                return lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
+            }
+            return sortAscending ? result == .orderedAscending : result == .orderedDescending
+        }
+    }
+
+    private func normalizedType(_ url: URL) -> String {
+        url.pathExtension.isEmpty ? "Other" : url.pathExtension.uppercased()
+    }
+
+    private func modificationDate(_ url: URL) -> Date {
+        (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
     }
 }
