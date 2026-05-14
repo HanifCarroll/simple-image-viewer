@@ -12,7 +12,7 @@ struct ContentView: View {
         }
         .background(.regularMaterial)
         .focusedValue(\.activeImageStore, store)
-        .background(KeyCommandView(store: store))
+        .background(ViewerWindowStoreBinder(store: store))
     }
 
     private var toolbar: some View {

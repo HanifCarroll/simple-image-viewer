@@ -7,7 +7,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var viewerWindows: [NSWindowController] = []
     private var usedInitialWindowForExternalOpen = false
 
+    override init() {
+        super.init()
+        pendingURLs.append(contentsOf: Self.launchArgumentURLs())
+    }
+
     func attach(_ store: ImageStore) {
+        guard self.store == nil else { return }
         self.store = store
         if !pendingURLs.isEmpty {
             openURLs(pendingURLs)
@@ -44,6 +50,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
+    func openPanelInNewWindow() {
+        let store = ImageStore()
+        openIndependentWindow(store: store)
+        store.openPanel()
+    }
+
+    func navigateActiveWindow(_ delta: Int) {
+        ActiveViewerStore.shared.store?.navigate(delta)
+    }
+
+    func selectFirstInActiveWindow() {
+        ActiveViewerStore.shared.store?.select(0)
+    }
+
+    func selectLastInActiveWindow() {
+        guard let store = ActiveViewerStore.shared.store else { return }
+        store.select(store.images.count - 1)
+    }
+
     private func openURLs(_ urls: [URL]) {
         guard let store else {
             pendingURLs.append(contentsOf: urls)
@@ -58,21 +83,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         for url in urlsToOpen {
-            openInIndependentWindow(url)
+            let store = ImageStore()
+            openIndependentWindow(store: store)
+            store.open(url)
         }
     }
 
-    private func openInIndependentWindow(_ url: URL) {
-        let store = ImageStore()
+    private func openIndependentWindow(store: ImageStore) {
         let contentView = ContentView(store: store)
             .frame(minWidth: 760, idealWidth: 1100, minHeight: 520, idealHeight: 760)
 
-        let window = NSWindow(
+        let window = ViewerWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
+        window.store = store
         window.title = "Simple Image Viewer"
         window.contentViewController = NSHostingController(rootView: contentView)
         window.delegate = self
@@ -82,7 +109,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewerWindows.append(controller)
         controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
-        store.open(url)
     }
 
     private func fitWindowsToVisibleScreen() {
@@ -103,6 +129,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let y = visibleFrame.midY - height / 2
             window.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
         }
+    }
+}
+
+private extension AppDelegate {
+    static func launchArgumentURLs() -> [URL] {
+        CommandLine.arguments
+            .dropFirst()
+            .filter { !$0.hasPrefix("-") }
+            .map { URL(fileURLWithPath: $0) }
     }
 }
 
