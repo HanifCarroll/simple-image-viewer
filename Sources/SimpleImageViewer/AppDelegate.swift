@@ -56,6 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.openPanel()
     }
 
+    func openNewViewerWindow() {
+        openIndependentWindow(store: ImageStore())
+    }
+
     func navigateActiveWindow(_ delta: Int) {
         ActiveViewerStore.shared.store?.navigate(delta)
     }

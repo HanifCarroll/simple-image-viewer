@@ -15,6 +15,8 @@ struct SimpleImageViewerApp: App {
         .defaultSize(width: 1100, height: 760)
         .commands {
             CommandGroup(replacing: .newItem) {
+                Button("New Viewer") { appDelegate.openNewViewerWindow() }
+                    .keyboardShortcut("n", modifiers: [.command])
                 Button("Open...") { activeImageStore?.openPanel() ?? ActiveViewerStore.shared.store?.openPanel() ?? appDelegate.openPanelInNewWindow() }
                     .keyboardShortcut("o", modifiers: [.command])
             }
