@@ -22,8 +22,11 @@ struct ThumbnailButton: View {
                         .padding(7)
                 }
             }
-            .frame(width: 76, height: 76)
+            .frame(width: 70, height: 70)
+            .padding(4)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .frame(width: 78, height: 78)
     }
 }

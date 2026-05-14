@@ -31,7 +31,10 @@ struct ContentView: View {
     private var imageCanvas: some View {
         ZStack {
             Color(nsColor: .windowBackgroundColor)
-            if let image = store.currentImage {
+            if let url = store.currentURL, url.isGIF {
+                AnimatedImageView(url: url)
+                    .padding(24)
+            } else if let image = store.currentImage {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
@@ -56,9 +59,16 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.vertical, 16)
         }
-        .frame(height: 104)
+        .scrollIndicators(.hidden)
+        .frame(height: 112)
         .background(.bar)
+    }
+}
+
+private extension URL {
+    var isGIF: Bool {
+        pathExtension.caseInsensitiveCompare("gif") == .orderedSame
     }
 }

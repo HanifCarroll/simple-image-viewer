@@ -9,7 +9,7 @@ struct SimpleImageViewerApp: App {
     var body: some Scene {
         WindowGroup("Simple Image Viewer") {
             ContentView(store: store)
-                .frame(minWidth: 760, minHeight: 520)
+                .frame(minWidth: 760, idealWidth: 1100, minHeight: 520, idealHeight: 760)
                 .onAppear {
                     appDelegate.attach(store)
                     if let path = CommandLine.arguments.dropFirst().first {
@@ -17,6 +17,7 @@ struct SimpleImageViewerApp: App {
                     }
                 }
         }
+        .defaultSize(width: 1100, height: 760)
         .commands {
             CommandMenu("Navigate") {
                 Button("Previous Image") { store.navigate(-1) }

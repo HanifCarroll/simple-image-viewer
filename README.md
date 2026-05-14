@@ -10,6 +10,7 @@ The acronym is **SIV**, pronounced like “sieve.”
 - Open a folder directly.
 - Move through images with left and right arrow keys.
 - Shows a horizontal thumbnail rail.
+- Plays animated GIFs.
 - Uses natural filename order, so `image-10.png` comes after `image-09.png`.
 - Supports common image formats including PNG, JPEG, GIF, WebP, TIFF, BMP, HEIC, and HEIF.
 
