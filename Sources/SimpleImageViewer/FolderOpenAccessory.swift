@@ -68,6 +68,7 @@ final class FolderOpenAccessoryView: NSView {
     private let depthLabel = NSTextField(labelWithString: "Depth")
     private let depthValueLabel = NSTextField(labelWithString: "1")
     private let depthStepper = NSStepper()
+    private let depthHelpLabel = NSTextField(labelWithString: "")
     private let photoLimitValueLabel = NSTextField(labelWithString: "No limit")
     private let photoLimitStepper = NSStepper()
     private let summaryLabel = NSTextField(wrappingLabelWithString: "Select a folder to preview image counts.")
@@ -110,7 +111,7 @@ final class FolderOpenAccessoryView: NSView {
         photoLimitStepper.increment = 100
         photoLimitStepper.valueWraps = false
 
-        for label in [summaryLabel, levelsLabel] {
+        for label in [summaryLabel, levelsLabel, depthHelpLabel] {
             label.textColor = .secondaryLabelColor
             label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         }
@@ -130,6 +131,7 @@ final class FolderOpenAccessoryView: NSView {
         depthRow.addArrangedSubview(depthLabel)
         depthRow.addArrangedSubview(depthValueLabel)
         depthRow.addArrangedSubview(depthStepper)
+        depthRow.addArrangedSubview(depthHelpLabel)
 
         let photoRow = NSStackView()
         photoRow.orientation = .horizontal
@@ -172,6 +174,7 @@ final class FolderOpenAccessoryView: NSView {
         depthStepper.maxValue = Double(max(model.deepestLevel, 1))
         depthStepper.integerValue = min(max(model.maxFolderDepth, 1), max(model.deepestLevel, 1))
         depthValueLabel.stringValue = "\(depthStepper.integerValue)"
+        depthHelpLabel.stringValue = "1-\(max(model.deepestLevel, 1))"
         depthRow.isHidden = !model.includeSubfolders
 
         photoLimitStepper.integerValue = model.maxPhotoCount
