@@ -33,6 +33,7 @@ struct ContentView: View {
             Color(nsColor: .windowBackgroundColor)
             if let url = store.currentURL, url.isGIF {
                 AnimatedImageView(url: url)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(24)
             } else if let image = store.currentImage {
                 Image(nsImage: image)
@@ -44,6 +45,9 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .layoutPriority(1)
+        .clipped()
     }
 
     private var thumbnailRail: some View {
@@ -63,6 +67,7 @@ struct ContentView: View {
         }
         .scrollIndicators(.hidden)
         .frame(height: 112)
+        .fixedSize(horizontal: false, vertical: true)
         .background(.bar)
     }
 }
