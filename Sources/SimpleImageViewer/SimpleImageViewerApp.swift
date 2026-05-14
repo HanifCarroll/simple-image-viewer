@@ -18,6 +18,8 @@ struct SimpleImageViewerApp: App {
                     .keyboardShortcut("n", modifiers: [.command])
                 Button("Open...") { appDelegate.openActiveWindowPanel() }
                     .keyboardShortcut("o", modifiers: [.command])
+                Button("Open in New Viewer...") { appDelegate.openPanelInNewWindow() }
+                    .keyboardShortcut("o", modifiers: [.command, .shift])
             }
             CommandMenu("Navigate") {
                 Button("Previous Image") { appDelegate.navigateActiveWindow(-1) }

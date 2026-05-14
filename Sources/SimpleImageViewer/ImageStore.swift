@@ -38,6 +38,10 @@ final class ImageStore: ObservableObject {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
     }
 
+    var windowTitle: String {
+        currentURL?.lastPathComponent ?? "Simple Image Viewer"
+    }
+
     var hasOpenedContent: Bool {
         !allImages.isEmpty || !images.isEmpty || currentImage != nil
     }

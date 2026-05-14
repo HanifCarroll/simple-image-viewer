@@ -6,7 +6,9 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
+            if store.hasOpenedContent {
+                toolbar
+            }
             imageCanvas
             thumbnailRail
         }
@@ -16,13 +18,9 @@ struct ContentView: View {
 
     private var toolbar: some View {
         HStack(spacing: 8) {
-            Button("Open") { store.openPanel() }
-            if store.hasOpenedContent {
-                Text(store.status)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .padding(.leading, 8)
-            }
+            Text(store.status)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             Spacer()
             if !store.allImages.isEmpty {
                 viewerOptions

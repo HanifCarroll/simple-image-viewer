@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 final class ViewerWindow: NSWindow {
@@ -77,6 +78,7 @@ struct ViewerWindowStoreBinder: NSViewRepresentable {
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async {
             ActiveViewerStore.shared.register(store, for: view.window)
+            view.window?.title = store.windowTitle
             context.coordinator.bind(to: view.window, store: store)
         }
     }
@@ -88,14 +90,23 @@ struct ViewerWindowStoreBinder: NSViewRepresentable {
     final class Coordinator {
         private weak var window: NSWindow?
         private var observer: NSObjectProtocol?
+        private var titleCancellable: AnyCancellable?
 
         func bind(to window: NSWindow?, store: ImageStore) {
             guard self.window !== window else { return }
             if let observer {
                 NotificationCenter.default.removeObserver(observer)
             }
+            titleCancellable = nil
             self.window = window
             guard let window else { return }
+            updateWindowTitle(window, store: store)
+            titleCancellable = store.$status.sink { [weak self, weak window, weak store] _ in
+                DispatchQueue.main.async {
+                    guard let self, let window, let store else { return }
+                    self.updateWindowTitle(window, store: store)
+                }
+            }
             observer = NotificationCenter.default.addObserver(
                 forName: NSWindow.didBecomeKeyNotification,
                 object: window,
@@ -109,6 +120,10 @@ struct ViewerWindowStoreBinder: NSViewRepresentable {
             if let observer {
                 NotificationCenter.default.removeObserver(observer)
             }
+        }
+
+        private func updateWindowTitle(_ window: NSWindow, store: ImageStore) {
+            window.title = store.windowTitle
         }
     }
 }
