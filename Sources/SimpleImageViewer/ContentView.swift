@@ -15,8 +15,7 @@ struct ContentView: View {
 
     private var toolbar: some View {
         HStack(spacing: 8) {
-            Button("Open Image") { store.openImagePanel() }
-            Button("Open Folder") { store.openFolderPanel() }
+            Button("Open") { store.openPanel() }
             Text(store.status)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

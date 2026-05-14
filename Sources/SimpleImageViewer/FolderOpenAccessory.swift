@@ -95,16 +95,24 @@ final class FolderOpenAccessoryView: NSView {
             return
         }
 
+        let folderURL = Self.folderURL(for: url)
         summaryLabel.stringValue = "Scanning folder..."
         levelsLabel.stringValue = ""
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let summary = scanFolder(url)
+            let summary = scanFolder(folderURL)
             DispatchQueue.main.async {
                 guard let self, self.scanGeneration == generation else { return }
                 self.model.updateSummary(summary)
                 self.refresh()
             }
         }
+    }
+
+    private static func folderURL(for url: URL) -> URL {
+        if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+            return url
+        }
+        return url.deletingLastPathComponent()
     }
 
     private func buildView() {

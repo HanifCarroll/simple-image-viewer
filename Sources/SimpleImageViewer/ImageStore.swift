@@ -139,23 +139,13 @@ final class ImageStore: ObservableObject {
         }
     }
 
-    func openImagePanel() {
+    func openPanel() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.image]
-        if panel.runModal() == .OK, let url = panel.url {
-            open(url)
-        }
-    }
-
-    func openFolderPanel() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        panel.prompt = "Open Folder"
+        panel.allowedContentTypes = [.image]
+        panel.prompt = "Open"
         let accessoryModel = FolderOpenAccessoryModel(
             includeSubfolders: includeSubfolders,
             maxFolderDepth: maxFolderDepth,
@@ -172,10 +162,11 @@ final class ImageStore: ObservableObject {
             panel.runModal()
         }
         if result == .OK, let url = panel.url {
+            let folderURL = folderURL(for: url)
             includeSubfolders = accessoryModel.includeSubfolders
             maxFolderDepth = accessoryModel.maxFolderDepth
             maxPhotoCount = accessoryModel.maxPhotoCount
-            if let summary = accessoryModel.summary, summary.rootURL.standardizedFileURL == url.standardizedFileURL {
+            if let summary = accessoryModel.summary, summary.rootURL.standardizedFileURL == folderURL.standardizedFileURL {
                 finishOpen(url, urls: imageURLs(in: summary, options: folderScanOptions))
             } else {
                 open(url)
@@ -225,6 +216,13 @@ final class ImageStore: ObservableObject {
             maxDepth: maxFolderDepth,
             maxImages: maxPhotoCount
         )
+    }
+
+    private func folderURL(for url: URL) -> URL {
+        if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+            return url
+        }
+        return url.deletingLastPathComponent()
     }
 
     private var usesDefaultViewOptions: Bool {
