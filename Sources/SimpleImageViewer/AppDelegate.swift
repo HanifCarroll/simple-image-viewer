@@ -42,9 +42,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func openInDisconnectedInstance(_ url: URL) {
+        guard let executableURL = Bundle.main.executableURL else { return }
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-n", Bundle.main.bundleURL.path, "--args", url.path]
+        process.executableURL = executableURL
+        process.arguments = [url.path]
         try? process.run()
     }
 

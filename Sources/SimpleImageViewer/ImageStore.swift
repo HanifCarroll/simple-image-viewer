@@ -95,6 +95,7 @@ final class ImageStore: ObservableObject {
             } else {
                 currentIndex = 0
             }
+            warmInitialThumbnails()
             loadCurrent()
         } else {
             applyViewOptions(preserving: url.hasDirectoryPath ? nil : url)
@@ -115,6 +116,7 @@ final class ImageStore: ObservableObject {
                     } else {
                         currentIndex = 0
                     }
+                    warmInitialThumbnails()
                     loadCurrent()
                 } else {
                     updateLoadingStatus()
@@ -255,7 +257,15 @@ final class ImageStore: ObservableObject {
         } else {
             currentIndex = min(currentIndex, max(images.count - 1, 0))
         }
+        warmInitialThumbnails()
         loadCurrent()
+    }
+
+    private func warmInitialThumbnails() {
+        guard !images.isEmpty else { return }
+        let startIndex = max(images.startIndex, currentIndex - 4)
+        let endIndex = min(images.index(before: images.endIndex), currentIndex + 12)
+        ThumbnailCache.shared.warmImmediately(images[startIndex...endIndex])
     }
 
     private func sort(_ urls: [URL]) -> [URL] {

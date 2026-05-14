@@ -12,7 +12,7 @@ struct SimpleImageViewerApp: App {
                 .frame(minWidth: 760, idealWidth: 1100, minHeight: 520, idealHeight: 760)
                 .onAppear {
                     appDelegate.attach(store)
-                    if let path = CommandLine.arguments.dropFirst().first {
+                    if let path = CommandLine.arguments.dropFirst().first(where: { !$0.hasPrefix("-") }) {
                         store.open(URL(fileURLWithPath: path))
                     }
                 }

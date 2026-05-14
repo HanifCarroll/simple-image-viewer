@@ -116,6 +116,15 @@ final class ThumbnailCache {
         }
     }
 
+    func warmImmediately(_ urls: ArraySlice<URL>) {
+        for url in urls where image(for: url) == nil && startPreheating(url) {
+            if let thumbnail = Self.makeThumbnail(for: url) {
+                cache.setObject(thumbnail, forKey: url as NSURL)
+            }
+            finishLoading(url).forEach { $0(image(for: url)) }
+        }
+    }
+
     private func startLoading(_ url: URL, completion: @escaping (NSImage?) -> Void) -> Bool {
         lock.lock()
         defer { lock.unlock() }
