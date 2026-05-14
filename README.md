@@ -60,6 +60,14 @@ decoding. It then launches the app against a non-first fixture image, checks
 that the viewer selects it, relaunches against the fixture folder, and checks
 that the viewer opens the natural first image.
 
+Install the app so it appears in Spotlight:
+
+```sh
+./script/install_app.sh
+```
+
+By default this copies the built app to `/Applications/Simple Image Viewer.app`.
+
 ## Use As Default Image Viewer
 
 After building once:
