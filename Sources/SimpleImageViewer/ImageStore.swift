@@ -101,6 +101,7 @@ final class ImageStore: ObservableObject {
         let panelDelegate = FolderOpenPanelDelegate(accessoryView: accessoryView)
         panel.delegate = panelDelegate
         panel.accessoryView = accessoryView
+        panel.isAccessoryViewDisclosed = true
         panel.setContentSize(NSSize(width: 1_120, height: 720))
         accessoryView.updateSelection(panel.url ?? panel.directoryURL)
         let result = withExtendedLifetime(panelDelegate) {
