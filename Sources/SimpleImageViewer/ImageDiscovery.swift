@@ -22,16 +22,22 @@ struct FolderDepthSummary: Identifiable {
     var id: Int { depth }
 }
 
+struct FolderScannedImage {
+    let url: URL
+    let depth: Int
+}
+
 struct FolderScanSummary {
     let rootURL: URL
     let levels: [FolderDepthSummary]
+    let images: [FolderScannedImage]
 
     var deepestLevel: Int {
         levels.map(\.depth).max() ?? 0
     }
 
     var totalImages: Int {
-        levels.reduce(0) { $0 + $1.imageCount }
+        images.count
     }
 
     var totalFolders: Int {
@@ -52,10 +58,30 @@ func imageURLs(in folderURL: URL, options: FolderScanOptions = .nonRecursive) ->
         .sorted { relativePath($0, from: folderURL).localizedStandardCompare(relativePath($1, from: folderURL)) == .orderedAscending }
 }
 
+func imageURLs(in summary: FolderScanSummary, options: FolderScanOptions) -> [URL] {
+    let maxDepth = options.effectiveMaxDepth
+    let maxImages = options.maxImages
+    var urls: [URL] = []
+    for image in summary.images where image.depth <= maxDepth {
+        guard maxImages <= 0 || urls.count < maxImages else { break }
+        urls.append(image.url)
+    }
+
+    return urls
+        .sorted { relativePath($0, from: summary.rootURL).localizedStandardCompare(relativePath($1, from: summary.rootURL)) == .orderedAscending }
+}
+
 func scanFolder(_ folderURL: URL) -> FolderScanSummary {
     var foldersByDepth: [Int: Int] = [:]
     var imagesByDepth: [Int: Int] = [:]
-    collectSummary(in: folderURL, depth: 0, foldersByDepth: &foldersByDepth, imagesByDepth: &imagesByDepth)
+    var images: [FolderScannedImage] = []
+    collectSummary(
+        in: folderURL,
+        depth: 0,
+        foldersByDepth: &foldersByDepth,
+        imagesByDepth: &imagesByDepth,
+        images: &images
+    )
 
     let allDepths = Set(foldersByDepth.keys).union(imagesByDepth.keys)
     let levels = allDepths.sorted().map { depth in
@@ -66,7 +92,7 @@ func scanFolder(_ folderURL: URL) -> FolderScanSummary {
         )
     }
 
-    return FolderScanSummary(rootURL: folderURL, levels: levels)
+    return FolderScanSummary(rootURL: folderURL, levels: levels, images: images)
 }
 
 extension FolderScanOptions {
@@ -95,15 +121,24 @@ private func collectSummary(
     in folderURL: URL,
     depth: Int,
     foldersByDepth: inout [Int: Int],
-    imagesByDepth: inout [Int: Int]
+    imagesByDepth: inout [Int: Int],
+    images: inout [FolderScannedImage]
 ) {
     foldersByDepth[depth, default: 0] += 1
 
     let entries = directoryEntries(in: folderURL)
-    imagesByDepth[depth, default: 0] += entries.filter { isSupportedImage($0) }.count
+    let imageEntries = entries.filter { isSupportedImage($0) }
+    imagesByDepth[depth, default: 0] += imageEntries.count
+    images.append(contentsOf: imageEntries.map { FolderScannedImage(url: $0, depth: depth) })
 
     for folder in entries.filter({ isDirectory($0) }) {
-        collectSummary(in: folder, depth: depth + 1, foldersByDepth: &foldersByDepth, imagesByDepth: &imagesByDepth)
+        collectSummary(
+            in: folder,
+            depth: depth + 1,
+            foldersByDepth: &foldersByDepth,
+            imagesByDepth: &imagesByDepth,
+            images: &images
+        )
     }
 }
 

@@ -31,6 +31,7 @@ final class ImageStore: ObservableObject {
     @Published var nameFilter = "" {
         didSet { applyViewOptions(preserving: currentURL) }
     }
+    private var openGeneration = 0
 
     var currentURL: URL? {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
@@ -49,9 +50,25 @@ final class ImageStore: ObservableObject {
             folderURL = url.deletingLastPathComponent()
         }
 
-        let urls = imageURLs(in: folderURL, options: folderScanOptions)
+        openGeneration += 1
+        let generation = openGeneration
+        let options = folderScanOptions
+        status = "Loading images..."
+        currentImage = nil
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let urls = imageURLs(in: folderURL, options: options)
+            DispatchQueue.main.async {
+                guard let self, self.openGeneration == generation else { return }
+                self.finishOpen(url, urls: urls)
+            }
+        }
+    }
+
+    private func finishOpen(_ url: URL, urls: [URL]) {
         guard !urls.isEmpty else {
             images = []
+            allImages = []
             currentIndex = 0
             currentImage = nil
             status = "No supported images found"
@@ -59,20 +76,18 @@ final class ImageStore: ObservableObject {
         }
 
         allImages = urls
-        applyViewOptions(preserving: url.hasDirectoryPath ? nil : url)
-        guard !images.isEmpty else {
-            currentIndex = 0
-            currentImage = nil
-            status = "No images match the current filters"
-            return
-        }
-        if !url.hasDirectoryPath,
-           let index = images.firstIndex(where: { $0.standardizedFileURL == url.standardizedFileURL }) {
-            currentIndex = index
+        if usesDefaultViewOptions {
+            images = urls
+            if !url.hasDirectoryPath,
+               let index = images.firstIndex(where: { $0.standardizedFileURL == url.standardizedFileURL }) {
+                currentIndex = index
+            } else {
+                currentIndex = 0
+            }
+            loadCurrent()
         } else {
-            currentIndex = 0
+            applyViewOptions(preserving: url.hasDirectoryPath ? nil : url)
         }
-        loadCurrent()
     }
 
     func openImagePanel() {
@@ -111,7 +126,11 @@ final class ImageStore: ObservableObject {
             includeSubfolders = accessoryModel.includeSubfolders
             maxFolderDepth = accessoryModel.maxFolderDepth
             maxPhotoCount = accessoryModel.maxPhotoCount
-            open(url)
+            if let summary = accessoryModel.summary, summary.rootURL.standardizedFileURL == url.standardizedFileURL {
+                finishOpen(url, urls: imageURLs(in: summary, options: folderScanOptions))
+            } else {
+                open(url)
+            }
         }
     }
 
@@ -148,6 +167,13 @@ final class ImageStore: ObservableObject {
             maxDepth: maxFolderDepth,
             maxImages: maxPhotoCount
         )
+    }
+
+    private var usesDefaultViewOptions: Bool {
+        sortOption == .name &&
+            sortAscending &&
+            typeFilter == "All" &&
+            nameFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func applyViewOptions(preserving preferredURL: URL?) {

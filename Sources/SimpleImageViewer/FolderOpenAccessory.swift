@@ -37,15 +37,23 @@ final class FolderOpenAccessoryModel {
         return min(includedImageCount, maxPhotoCount)
     }
 
+    func clearSelection() {
+        summary = nil
+        includeSubfolders = false
+    }
+
+    func updateSummary(_ summary: FolderScanSummary) {
+        self.summary = summary
+        clampOptions()
+    }
+
     func updateSelection(_ url: URL?) {
         guard let url else {
-            summary = nil
-            includeSubfolders = false
+            clearSelection()
             return
         }
 
-        summary = scanFolder(url)
-        clampOptions()
+        updateSummary(scanFolder(url))
     }
 
     func clampOptions() {
@@ -74,6 +82,7 @@ final class FolderOpenAccessoryView: NSView {
     private let summaryLabel = NSTextField(wrappingLabelWithString: "Select a folder to preview image counts.")
     private let levelsLabel = NSTextField(wrappingLabelWithString: "")
     private let depthRow = NSStackView()
+    private var scanGeneration = 0
 
     init(model: FolderOpenAccessoryModel) {
         self.model = model
@@ -87,8 +96,24 @@ final class FolderOpenAccessoryView: NSView {
     }
 
     func updateSelection(_ url: URL?) {
-        model.updateSelection(url)
-        refresh()
+        scanGeneration += 1
+        let generation = scanGeneration
+        guard let url else {
+            model.clearSelection()
+            refresh()
+            return
+        }
+
+        summaryLabel.stringValue = "Scanning folder..."
+        levelsLabel.stringValue = ""
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let summary = scanFolder(url)
+            DispatchQueue.main.async {
+                guard let self, self.scanGeneration == generation else { return }
+                self.model.updateSummary(summary)
+                self.refresh()
+            }
+        }
     }
 
     private func buildView() {
