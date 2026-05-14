@@ -3,6 +3,8 @@ import Foundation
 private let supportedExtensions: Set<String> = [
     "png", "jpg", "jpeg", "heic", "heif", "webp", "gif", "tif", "tiff", "bmp"
 ]
+private let summaryImageIndexLimit = 20_000
+private let summaryMaximumDepth = 64
 
 struct FolderScanOptions {
     var includeSubfolders: Bool
@@ -31,6 +33,8 @@ struct FolderScanSummary {
     let rootURL: URL
     let levels: [FolderDepthSummary]
     let images: [FolderScannedImage]
+    let isImageIndexComplete: Bool
+    let wasCancelled: Bool
 
     var deepestLevel: Int {
         levels.map(\.depth).max() ?? 0
@@ -49,136 +53,202 @@ extension FolderScanSummary: Identifiable {
     var id: URL { rootURL }
 }
 
-func imageURLs(in folderURL: URL, options: FolderScanOptions = .nonRecursive) -> [URL] {
-    let maxDepth = options.effectiveMaxDepth
-    var urls: [URL] = []
-    collectImages(in: folderURL, depth: 0, maxDepth: maxDepth, maxImages: options.maxImages, into: &urls)
+final class FolderDiscoveryCancellation {
+    private let lock = NSLock()
+    private var cancelled = false
 
-    return urls
-        .sorted { relativePath($0, from: folderURL).localizedStandardCompare(relativePath($1, from: folderURL)) == .orderedAscending }
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        lock.unlock()
+    }
+}
+
+func imageURLs(
+    in folderURL: URL,
+    options: FolderScanOptions = .nonRecursive,
+    cancellation: FolderDiscoveryCancellation? = nil
+) -> [URL] {
+    let scanner = FolderDiscoveryScanner(
+        rootURL: folderURL,
+        maximumDepth: options.effectiveMaxDepth,
+        maxImages: options.maxImages,
+        maxIndexedImages: nil,
+        cancellation: cancellation
+    )
+    let summary = scanner.scan(batchSize: 0)
+    return sortedImageURLs(summary.images.map(\.url), from: folderURL)
 }
 
 func imageURLs(in summary: FolderScanSummary, options: FolderScanOptions) -> [URL] {
     let maxDepth = options.effectiveMaxDepth
     let maxImages = options.maxImages
-    var urls: [URL] = []
-    for image in summary.images where image.depth <= maxDepth {
-        guard maxImages <= 0 || urls.count < maxImages else { break }
-        urls.append(image.url)
+    let indexedImages = summary.images.filter { $0.depth <= maxDepth }
+    if summary.isImageIndexComplete || maxImages > 0 && indexedImages.count >= maxImages {
+        let limitedImages = maxImages > 0 ? Array(indexedImages.prefix(maxImages)) : indexedImages
+        return sortedImageURLs(limitedImages.map(\.url), from: summary.rootURL)
     }
 
-    return urls
-        .sorted { relativePath($0, from: summary.rootURL).localizedStandardCompare(relativePath($1, from: summary.rootURL)) == .orderedAscending }
+    return imageURLs(in: summary.rootURL, options: options)
 }
 
 func enumerateImageURLBatches(
     in folderURL: URL,
     options: FolderScanOptions = .nonRecursive,
     batchSize: Int = 64,
-    onBatch: ([URL], Bool) -> Void
+    cancellation: FolderDiscoveryCancellation? = nil,
+    onBatch: @escaping ([URL], Bool) -> Void
 ) {
-    let maxDepth = options.effectiveMaxDepth
-    var batch: [URL] = []
-    var totalCount = 0
-
-    func flush(finished: Bool) {
-        guard !batch.isEmpty || finished else { return }
-        let currentBatch = batch
-        batch.removeAll(keepingCapacity: true)
-        onBatch(currentBatch, finished)
-    }
-
-    func collect(in folderURL: URL, depth: Int) {
-        guard options.maxImages <= 0 || totalCount < options.maxImages else { return }
-
-        let entries = directoryEntries(in: folderURL)
-        for file in entries where isSupportedImage(file) {
-            guard options.maxImages <= 0 || totalCount < options.maxImages else { return }
-            batch.append(file)
-            totalCount += 1
-            if batch.count >= batchSize {
-                flush(finished: false)
-            }
-        }
-
-        guard depth < maxDepth else { return }
-
-        for folder in entries where isDirectory(folder) {
-            collect(in: folder, depth: depth + 1)
-        }
-    }
-
-    collect(in: folderURL, depth: 0)
-    flush(finished: true)
+    let scanner = FolderDiscoveryScanner(
+        rootURL: folderURL,
+        maximumDepth: options.effectiveMaxDepth,
+        maxImages: options.maxImages,
+        maxIndexedImages: 0,
+        cancellation: cancellation
+    )
+    _ = scanner.scan(batchSize: batchSize, onBatch: onBatch)
 }
 
-func scanFolder(_ folderURL: URL) -> FolderScanSummary {
-    var foldersByDepth: [Int: Int] = [:]
-    var imagesByDepth: [Int: Int] = [:]
-    var images: [FolderScannedImage] = []
-    collectSummary(
-        in: folderURL,
-        depth: 0,
-        foldersByDepth: &foldersByDepth,
-        imagesByDepth: &imagesByDepth,
-        images: &images
+func scanFolder(_ folderURL: URL, cancellation: FolderDiscoveryCancellation? = nil) -> FolderScanSummary {
+    let scanner = FolderDiscoveryScanner(
+        rootURL: folderURL,
+        maximumDepth: summaryMaximumDepth,
+        maxImages: 0,
+        maxIndexedImages: summaryImageIndexLimit,
+        cancellation: cancellation
     )
-
-    let allDepths = Set(foldersByDepth.keys).union(imagesByDepth.keys)
-    let levels = allDepths.sorted().map { depth in
-        FolderDepthSummary(
-            depth: depth,
-            folderCount: foldersByDepth[depth, default: 0],
-            imageCount: imagesByDepth[depth, default: 0]
-        )
-    }
-
-    return FolderScanSummary(rootURL: folderURL, levels: levels, images: images)
+    return scanner.scan(batchSize: 0)
 }
 
 extension FolderScanOptions {
     static let nonRecursive = FolderScanOptions(includeSubfolders: false, maxDepth: 0, maxImages: 0)
 }
 
-private func collectImages(in folderURL: URL, depth: Int, maxDepth: Int, maxImages: Int, into urls: inout [URL]) {
-    guard maxImages <= 0 || urls.count < maxImages else { return }
-
-    let entries = directoryEntries(in: folderURL)
-    let files = entries.filter { isSupportedImage($0) }
-    for file in files {
-        guard maxImages <= 0 || urls.count < maxImages else { return }
-        urls.append(file)
+private final class FolderDiscoveryScanner {
+    private struct DirectoryItem {
+        let url: URL
+        let depth: Int
     }
 
-    guard depth < maxDepth else { return }
-
-    for folder in entries.filter({ isDirectory($0) }) {
-        collectImages(in: folder, depth: depth + 1, maxDepth: maxDepth, maxImages: maxImages, into: &urls)
-        guard maxImages <= 0 || urls.count < maxImages else { return }
+    private struct LevelCounts {
+        var folders = 0
+        var images = 0
     }
-}
 
-private func collectSummary(
-    in folderURL: URL,
-    depth: Int,
-    foldersByDepth: inout [Int: Int],
-    imagesByDepth: inout [Int: Int],
-    images: inout [FolderScannedImage]
-) {
-    foldersByDepth[depth, default: 0] += 1
+    private let rootURL: URL
+    private let maximumDepth: Int
+    private let maxImages: Int
+    private let maxIndexedImages: Int?
+    private let cancellation: FolderDiscoveryCancellation?
 
-    let entries = directoryEntries(in: folderURL)
-    let imageEntries = entries.filter { isSupportedImage($0) }
-    imagesByDepth[depth, default: 0] += imageEntries.count
-    images.append(contentsOf: imageEntries.map { FolderScannedImage(url: $0, depth: depth) })
+    private var levels: [Int: LevelCounts] = [:]
+    private var images: [FolderScannedImage] = []
+    private var visitedDirectoryPaths: Set<String> = []
+    private var discoveredImageCount = 0
+    private var imageIndexComplete = true
 
-    for folder in entries.filter({ isDirectory($0) }) {
-        collectSummary(
-            in: folder,
-            depth: depth + 1,
-            foldersByDepth: &foldersByDepth,
-            imagesByDepth: &imagesByDepth,
-            images: &images
+    init(
+        rootURL: URL,
+        maximumDepth: Int,
+        maxImages: Int,
+        maxIndexedImages: Int?,
+        cancellation: FolderDiscoveryCancellation?
+    ) {
+        self.rootURL = rootURL
+        self.maximumDepth = max(0, maximumDepth)
+        self.maxImages = max(0, maxImages)
+        self.maxIndexedImages = maxIndexedImages.map { max(0, $0) }
+        self.cancellation = cancellation
+    }
+
+    func scan(batchSize: Int, onBatch: (([URL], Bool) -> Void)? = nil) -> FolderScanSummary {
+        let batchCapacity = max(0, batchSize)
+        var batch: [URL] = []
+
+        func flush(finished: Bool) {
+            guard let onBatch else { return }
+            guard !batch.isEmpty || finished else { return }
+            let currentBatch = batch
+            batch.removeAll(keepingCapacity: true)
+            onBatch(currentBatch, finished)
+        }
+
+        var stack = [DirectoryItem(url: rootURL, depth: 0)]
+        while let item = stack.popLast() {
+            guard !isCancelled else { break }
+            guard maxImages <= 0 || discoveredImageCount < maxImages else { break }
+            guard markDirectoryVisited(item.url) else { continue }
+
+            levels[item.depth, default: LevelCounts()].folders += 1
+            let entries = directoryEntries(in: item.url)
+            for imageURL in entries where isSupportedImage(imageURL) {
+                guard !isCancelled else { break }
+                guard maxImages <= 0 || discoveredImageCount < maxImages else { break }
+                discoveredImageCount += 1
+                levels[item.depth, default: LevelCounts()].images += 1
+                indexImage(FolderScannedImage(url: imageURL, depth: item.depth))
+                batch.append(imageURL)
+                if batchCapacity > 0 && batch.count >= batchCapacity {
+                    flush(finished: false)
+                }
+            }
+
+            guard !isCancelled else { break }
+            guard item.depth < maximumDepth else { continue }
+            let childFolders = entries.filter { isTraversableDirectory($0) }
+            for folderURL in childFolders.reversed() {
+                stack.append(DirectoryItem(url: folderURL, depth: item.depth + 1))
+            }
+        }
+
+        flush(finished: !isCancelled)
+        return makeSummary(wasCancelled: isCancelled)
+    }
+
+    private var isCancelled: Bool {
+        cancellation?.isCancelled == true
+    }
+
+    private func indexImage(_ image: FolderScannedImage) {
+        guard let maxIndexedImages else {
+            images.append(image)
+            return
+        }
+
+        guard maxIndexedImages > 0, images.count < maxIndexedImages else {
+            imageIndexComplete = false
+            return
+        }
+
+        images.append(image)
+    }
+
+    private func markDirectoryVisited(_ url: URL) -> Bool {
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.path
+        return visitedDirectoryPaths.insert(path).inserted
+    }
+
+    private func makeSummary(wasCancelled: Bool) -> FolderScanSummary {
+        let levelSummaries = levels.keys.sorted().map { depth in
+            let counts = levels[depth, default: LevelCounts()]
+            return FolderDepthSummary(
+                depth: depth,
+                folderCount: counts.folders,
+                imageCount: counts.images
+            )
+        }
+        return FolderScanSummary(
+            rootURL: rootURL,
+            levels: levelSummaries,
+            images: images,
+            isImageIndexComplete: imageIndexComplete,
+            wasCancelled: wasCancelled
         )
     }
 }
@@ -186,19 +256,34 @@ private func collectSummary(
 private func directoryEntries(in folderURL: URL) -> [URL] {
     ((try? FileManager.default.contentsOfDirectory(
         at: folderURL,
-        includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
-        options: [.skipsHiddenFiles]
+        includingPropertiesForKeys: [
+            .isDirectoryKey,
+            .isRegularFileKey,
+            .isSymbolicLinkKey,
+            .isPackageKey
+        ],
+        options: [.skipsHiddenFiles, .skipsPackageDescendants]
     )) ?? [])
     .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
 }
 
 private func isSupportedImage(_ url: URL) -> Bool {
-    supportedExtensions.contains(url.pathExtension.lowercased()) &&
-        ((try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true)
+    guard supportedExtensions.contains(url.pathExtension.lowercased()) else { return false }
+    let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+    return values?.isRegularFile == true && values?.isSymbolicLink != true
 }
 
-private func isDirectory(_ url: URL) -> Bool {
-    (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+private func isTraversableDirectory(_ url: URL) -> Bool {
+    let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey])
+    return values?.isDirectory == true &&
+        values?.isSymbolicLink != true &&
+        values?.isPackage != true
+}
+
+private func sortedImageURLs(_ urls: [URL], from rootURL: URL) -> [URL] {
+    urls.sorted {
+        relativePath($0, from: rootURL).localizedStandardCompare(relativePath($1, from: rootURL)) == .orderedAscending
+    }
 }
 
 private func relativePath(_ url: URL, from rootURL: URL) -> String {
