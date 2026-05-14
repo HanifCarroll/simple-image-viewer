@@ -89,9 +89,9 @@ struct ContentView: View {
     private var thumbnailRail: some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 10) {
-                ForEach(Array(store.images.enumerated()), id: \.offset) { index, url in
+                ForEach(store.images.indices, id: \.self) { index in
                     ThumbnailButton(
-                        url: url,
+                        url: store.images[index],
                         selected: index == store.currentIndex,
                         action: { store.select(index) }
                     )
