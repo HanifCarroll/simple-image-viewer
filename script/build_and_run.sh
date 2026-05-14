@@ -10,8 +10,10 @@ APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$BINARY_NAME"
 APP_LOG="$HOME/Library/Logs/$APP_NAME/app.log"
 VERIFY_FIXTURE_DIR="$DIST_DIR/verify-fixtures"
+VERIFY_NESTED_DIR="$VERIFY_FIXTURE_DIR/nested"
 VERIFY_HELPER="$DIST_DIR/verify-image-discovery"
 MODE="${1:-run}"
+VERIFY_APP_PID=""
 
 cd "$ROOT_DIR"
 
@@ -25,6 +27,13 @@ if [[ "$MODE" == "run" || "$MODE" == "--verify" || "$MODE" == "--debug" || "$MOD
 fi
 
 pkill -f "$EXECUTABLE" >/dev/null 2>&1 || true
+
+if [[ "$MODE" == "--verify" ]]; then
+  cleanup_verify_app() {
+    pkill -f "$EXECUTABLE" >/dev/null 2>&1 || true
+  }
+  trap cleanup_verify_app EXIT
+fi
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
@@ -103,9 +112,14 @@ open_app() {
   fi
 }
 
+launch_verify_app() {
+  "$EXECUTABLE" "$@" >/dev/null 2>&1 &
+  VERIFY_APP_PID="$!"
+}
+
 create_verify_fixtures() {
   rm -rf "$VERIFY_FIXTURE_DIR"
-  mkdir -p "$VERIFY_FIXTURE_DIR"
+  mkdir -p "$VERIFY_FIXTURE_DIR" "$VERIFY_NESTED_DIR"
 
   if [[ ! -f "$ROOT_DIR/Assets/AppIcon.png" ]]; then
     echo "verify fixture source missing: Assets/AppIcon.png" >&2
@@ -114,11 +128,14 @@ create_verify_fixtures() {
 
   sips -s format png "$ROOT_DIR/Assets/AppIcon.png" --out "$VERIFY_FIXTURE_DIR/image-02.png" >/dev/null
   sips -s format jpeg "$ROOT_DIR/Assets/AppIcon.png" --out "$VERIFY_FIXTURE_DIR/image-10.jpg" >/dev/null
+  sips -s format png "$ROOT_DIR/Assets/AppIcon.png" --out "$VERIFY_NESTED_DIR/image-03.png" >/dev/null
   printf '%s\n' "not an image" > "$VERIFY_FIXTURE_DIR/notes.txt"
 }
 
 verify_image_code_paths() {
   swiftc "$ROOT_DIR/Sources/SimpleImageViewer/ImageDiscovery.swift" \
+    "$ROOT_DIR/Sources/SimpleImageViewer/ImageListPresentation.swift" \
+    "$ROOT_DIR/Sources/SimpleImageViewer/ImageOpeningService.swift" \
     "$ROOT_DIR/script/verify_image_discovery.swift" \
     -o "$VERIFY_HELPER" \
     -framework AppKit
@@ -127,6 +144,11 @@ verify_image_code_paths() {
 
 wait_for_app_pid() {
   local pid
+  if [[ -n "$VERIFY_APP_PID" ]] && kill -0 "$VERIFY_APP_PID" >/dev/null 2>&1; then
+    printf '%s\n' "$VERIFY_APP_PID"
+    return 0
+  fi
+
   for _ in {1..40}; do
     pid="$(pgrep -f "$EXECUTABLE" | head -n 1 || true)"
     if [[ -n "$pid" ]]; then
@@ -136,6 +158,25 @@ wait_for_app_pid() {
     sleep 0.25
   done
   return 1
+}
+
+stop_verify_app() {
+  if [[ -n "$VERIFY_APP_PID" ]] && kill -0 "$VERIFY_APP_PID" >/dev/null 2>&1; then
+    kill "$VERIFY_APP_PID" >/dev/null 2>&1 || true
+    wait "$VERIFY_APP_PID" >/dev/null 2>&1 || true
+    VERIFY_APP_PID=""
+  fi
+
+  pkill -f "$EXECUTABLE" >/dev/null 2>&1 || true
+  for _ in {1..40}; do
+    if ! pgrep -f "$EXECUTABLE" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo "$APP_NAME did not stop after verification smoke" >&2
+  exit 1
 }
 
 window_title_for_pid() {
@@ -182,7 +223,10 @@ case "$MODE" in
   --verify)
     create_verify_fixtures
     verify_image_code_paths
-    open_app "$VERIFY_FIXTURE_DIR/image-02.png"
+    launch_verify_app "$VERIFY_FIXTURE_DIR/image-10.jpg"
+    verify_app_opened_fixture "image-10.jpg"
+    stop_verify_app
+    launch_verify_app "$VERIFY_FIXTURE_DIR"
     verify_app_opened_fixture "image-02.png"
     ;;
   --app-log)

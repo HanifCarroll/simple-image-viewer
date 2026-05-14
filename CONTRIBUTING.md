@@ -8,6 +8,10 @@ Simple Image Viewer is intentionally small. Contributions should keep the app fa
 ./script/build_and_run.sh --verify
 ```
 
+The verification script builds the app bundle, runs the fixture-based Swift
+checks, and launches the app twice to smoke-test opening a selected image and
+opening a folder.
+
 ## Guidelines
 
 - Keep SwiftUI views focused and split by responsibility.
