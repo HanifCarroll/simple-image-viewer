@@ -13,7 +13,6 @@ struct ContentView: View {
             thumbnailRail
         }
         .background(.regularMaterial)
-        .background(ViewerWindowStoreBinder(store: store))
     }
 
     private var toolbar: some View {
