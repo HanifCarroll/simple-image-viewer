@@ -40,10 +40,10 @@ Open a specific image or folder:
 ./script/build_and_run.sh run /path/to/folder
 ```
 
-When opening a folder from the app UI, Simple Image Viewer shows a scan review
-with the total folders and image counts at each folder level. Use that review to
-enable subfolders, choose the maximum depth, and cap the total number of photos
-loaded.
+When opening a folder from the app UI, Simple Image Viewer shows recursive scan
+options inside the native folder picker. Select a folder to preview image counts,
+then enable subfolders, choose the maximum depth, and cap the total number of
+photos loaded before opening it.
 
 Verify that the app builds and launches:
 

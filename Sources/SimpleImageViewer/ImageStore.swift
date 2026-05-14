@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import UniformTypeIdentifiers
 
 final class ImageStore: ObservableObject {
@@ -9,7 +10,6 @@ final class ImageStore: ObservableObject {
     @Published var includeSubfolders = false
     @Published var maxFolderDepth = 2
     @Published var maxPhotoCount = 0
-    @Published var pendingFolderSummary: FolderScanSummary?
 
     var currentURL: URL? {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
@@ -59,23 +59,21 @@ final class ImageStore: ObservableObject {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.prompt = "Open Folder"
+        let accessoryModel = FolderOpenAccessoryModel(
+            includeSubfolders: includeSubfolders,
+            maxFolderDepth: maxFolderDepth,
+            maxPhotoCount: maxPhotoCount
+        )
+        let panelDelegate = FolderOpenPanelDelegate(model: accessoryModel)
+        panel.delegate = panelDelegate
+        panel.accessoryView = NSHostingView(rootView: FolderOpenAccessoryView(model: accessoryModel))
+        accessoryModel.updateSelection(panel.url ?? panel.directoryURL)
         if panel.runModal() == .OK, let url = panel.url {
-            prepareFolderOpen(url)
+            includeSubfolders = accessoryModel.includeSubfolders
+            maxFolderDepth = accessoryModel.maxFolderDepth
+            maxPhotoCount = accessoryModel.maxPhotoCount
+            open(url)
         }
-    }
-
-    func prepareFolderOpen(_ url: URL) {
-        pendingFolderSummary = scanFolder(url)
-    }
-
-    func confirmPendingFolderOpen() {
-        guard let folderURL = pendingFolderSummary?.rootURL else { return }
-        pendingFolderSummary = nil
-        open(folderURL)
-    }
-
-    func cancelPendingFolderOpen() {
-        pendingFolderSummary = nil
     }
 
     func navigate(_ delta: Int) {

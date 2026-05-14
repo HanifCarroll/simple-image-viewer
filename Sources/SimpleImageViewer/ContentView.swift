@@ -11,9 +11,6 @@ struct ContentView: View {
             thumbnailRail
         }
         .background(.regularMaterial)
-        .sheet(item: $store.pendingFolderSummary) { summary in
-            FolderScanReviewView(store: store, summary: summary)
-        }
     }
 
     private var toolbar: some View {
