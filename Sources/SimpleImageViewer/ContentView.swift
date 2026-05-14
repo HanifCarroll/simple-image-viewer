@@ -16,10 +16,12 @@ struct ContentView: View {
     private var toolbar: some View {
         HStack(spacing: 8) {
             Button("Open") { store.openPanel() }
-            Text(store.status)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .padding(.leading, 8)
+            if store.hasOpenedContent {
+                Text(store.status)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.leading, 8)
+            }
             Spacer()
             if !store.allImages.isEmpty {
                 viewerOptions

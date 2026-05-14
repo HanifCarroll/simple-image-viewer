@@ -19,6 +19,10 @@ struct SimpleImageViewerApp: App {
         }
         .defaultSize(width: 1100, height: 760)
         .commands {
+            CommandGroup(after: .newItem) {
+                Button("Open...") { store.openPanel() }
+                    .keyboardShortcut("o", modifiers: [.command])
+            }
             CommandMenu("Navigate") {
                 Button("Previous Image") { store.navigate(-1) }
                     .keyboardShortcut(.leftArrow, modifiers: [])
