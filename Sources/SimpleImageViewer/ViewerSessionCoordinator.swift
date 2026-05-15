@@ -9,6 +9,8 @@ final class ViewerSessionCoordinator {
         var controller: NSWindowController?
         var titleCancellable: AnyCancellable?
         var keyObserver: NSObjectProtocol?
+        var moveObserver: NSObjectProtocol?
+        var resizeObserver: NSObjectProtocol?
         var closeObserver: NSObjectProtocol?
 
         init(store: ImageStore, window: NSWindow) {
@@ -64,12 +66,29 @@ final class ViewerSessionCoordinator {
             guard let window else { return }
             self?.activate(window)
         }
+        session.moveObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: window,
+            queue: .main
+        ) { [weak window] _ in
+            guard let window else { return }
+            WindowFrameStore.save(window.frame)
+        }
+        session.resizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didEndLiveResizeNotification,
+            object: window,
+            queue: .main
+        ) { [weak window] _ in
+            guard let window else { return }
+            WindowFrameStore.save(window.frame)
+        }
         session.closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: window,
             queue: .main
         ) { [weak self, weak window] _ in
             guard let window else { return }
+            WindowFrameStore.save(window.frame)
             self?.unregister(window)
         }
     }
@@ -156,23 +175,24 @@ final class ViewerSessionCoordinator {
 
     @discardableResult
     private func openWindow(store: ImageStore) -> NSWindowController {
+        let initialFrame = WindowFrameStore.initialFrame
         let contentView = ContentView(store: store)
             .frame(minWidth: 760, idealWidth: 1100, minHeight: 520, idealHeight: 760)
 
         let window = ViewerWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
+            contentRect: initialFrame,
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Simple Image Viewer"
         window.contentViewController = NSHostingController(rootView: contentView)
-        window.center()
 
         let controller = NSWindowController(window: window)
         register(store, for: window)
         sessions[ObjectIdentifier(window)]?.controller = controller
         controller.showWindow(nil)
+        window.setFrame(initialFrame, display: true)
         NSApp.activate(ignoringOtherApps: true)
         return controller
     }
@@ -231,6 +251,12 @@ final class ViewerSessionCoordinator {
 
         if let keyObserver = session.keyObserver {
             NotificationCenter.default.removeObserver(keyObserver)
+        }
+        if let moveObserver = session.moveObserver {
+            NotificationCenter.default.removeObserver(moveObserver)
+        }
+        if let resizeObserver = session.resizeObserver {
+            NotificationCenter.default.removeObserver(resizeObserver)
         }
         if let closeObserver = session.closeObserver {
             NotificationCenter.default.removeObserver(closeObserver)
