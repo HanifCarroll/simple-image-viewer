@@ -17,6 +17,7 @@ if [[ ! -d "$INSTALL_DIR" || ! -w "$INSTALL_DIR" ]]; then
   exit 1
 fi
 
+pkill -f "$TARGET_APP/Contents/MacOS" >/dev/null 2>&1 || true
 rm -rf "$TARGET_APP"
 ditto "$SOURCE_APP" "$TARGET_APP"
 rm -rf "$SOURCE_APP"
