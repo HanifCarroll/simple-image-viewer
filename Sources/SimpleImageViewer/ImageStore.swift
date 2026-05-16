@@ -246,7 +246,7 @@ final class ImageStore: ObservableObject {
     func panBy(x: CGFloat, y: CGFloat) {
         guard zoomScale > 1 else { return }
         panOffset.width += x
-        panOffset.height -= y
+        panOffset.height += y
     }
 
     private func loadCurrent() {
