@@ -21,6 +21,7 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer()
+            zoomControls
             if !store.allImages.isEmpty {
                 viewerOptions
             }
@@ -28,6 +29,18 @@ struct ContentView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    private var zoomControls: some View {
+        HStack(spacing: 4) {
+            Button("-") { store.zoomOut() }
+                .frame(width: 28)
+            Button("\(Int((store.zoomScale * 100).rounded()))%") { store.resetZoom() }
+                .frame(width: 56)
+            Button("+") { store.zoomIn() }
+                .frame(width: 28)
+        }
+        .disabled(store.currentURL == nil)
     }
 
     private var viewerOptions: some View {
@@ -66,23 +79,34 @@ struct ContentView: View {
     private var imageCanvas: some View {
         ZStack {
             Color(nsColor: .windowBackgroundColor)
-            if let url = store.currentURL, url.isGIF {
-                AnimatedImageView(url: url)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(24)
-            } else if let image = store.currentImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .padding(24)
-            } else {
-                Text(store.status)
-                    .foregroundStyle(.secondary)
-            }
+            imageContent
+                .scaleEffect(store.zoomScale)
+                .offset(store.panOffset)
+            ImageCanvasInteractionView(
+                onMagnify: { store.magnify(by: $0) },
+                onScroll: { store.panBy(x: $0, y: $1) }
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .layoutPriority(1)
         .clipped()
+    }
+
+    @ViewBuilder
+    private var imageContent: some View {
+        if let url = store.currentURL, url.isGIF {
+            AnimatedImageView(url: url)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(24)
+        } else if let image = store.currentImage {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .padding(24)
+        } else {
+            Text(store.status)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var thumbnailRail: some View {

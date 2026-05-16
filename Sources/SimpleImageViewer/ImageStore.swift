@@ -7,6 +7,8 @@ final class ImageStore: ObservableObject {
     @Published var currentIndex = 0
     @Published var currentImage: NSImage?
     @Published var status = "Open an image or folder"
+    @Published var zoomScale = 1.0
+    @Published var panOffset = CGSize.zero
     @Published var includeSubfolders = false
     @Published var maxFolderDepth = 2
     @Published var maxPhotoCount = 0
@@ -26,6 +28,7 @@ final class ImageStore: ObservableObject {
     private var isProgressivelyLoading = false
     private var openCancellation: FolderDiscoveryCancellation?
     private var currentImageTask: ImageLoadingTask?
+    private var viewportURL: URL?
 
     var currentURL: URL? {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
@@ -223,8 +226,32 @@ final class ImageStore: ObservableObject {
         nameFilter = ""
     }
 
+    func zoomIn() {
+        setZoomScale(zoomScale * 1.25)
+    }
+
+    func zoomOut() {
+        setZoomScale(zoomScale / 1.25)
+    }
+
+    func resetZoom() {
+        setZoomScale(1)
+        panOffset = .zero
+    }
+
+    func magnify(by amount: Double) {
+        setZoomScale(zoomScale * (1 + amount))
+    }
+
+    func panBy(x: CGFloat, y: CGFloat) {
+        guard zoomScale > 1 else { return }
+        panOffset.width += x
+        panOffset.height -= y
+    }
+
     private func loadCurrent() {
         guard let currentURL else { return }
+        resetViewportIfNeeded(for: currentURL)
         cancelCurrentImageLoad()
 
         if currentURL.isGIFForViewer {
@@ -241,6 +268,21 @@ final class ImageStore: ObservableObject {
         }
         let loadingSuffix = isProgressivelyLoading ? ", still scanning..." : ""
         status = "\(currentURL.lastPathComponent)  (\(currentIndex + 1) of \(images.count)\(loadingSuffix))"
+    }
+
+    private func setZoomScale(_ scale: Double) {
+        let boundedScale = min(max(scale, 0.25), 8)
+        zoomScale = boundedScale
+        if boundedScale <= 1 {
+            panOffset = .zero
+        }
+    }
+
+    private func resetViewportIfNeeded(for url: URL) {
+        guard viewportURL?.standardizedFileURL != url.standardizedFileURL else { return }
+        viewportURL = url
+        zoomScale = 1
+        panOffset = .zero
     }
 
     private func cancelCurrentImageLoad() {
