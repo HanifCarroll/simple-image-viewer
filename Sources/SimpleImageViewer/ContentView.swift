@@ -77,15 +77,23 @@ struct ContentView: View {
     }
 
     private var imageCanvas: some View {
-        ZStack {
-            Color(nsColor: .windowBackgroundColor)
-            imageContent
-                .scaleEffect(store.zoomScale)
-                .offset(store.panOffset)
-            ImageCanvasInteractionView(
-                onMagnify: { store.magnify(by: $0) },
-                onScroll: { store.panBy(x: $0, y: $1) }
-            )
+        GeometryReader { geometry in
+            ZStack {
+                Color(nsColor: .windowBackgroundColor)
+                imageContent
+                    .scaleEffect(store.zoomScale)
+                    .offset(store.panOffset)
+                ImageCanvasInteractionView(
+                    onMagnify: { store.magnify(by: $0) },
+                    onScroll: { store.panBy(x: $0, y: $1) }
+                )
+            }
+            .onAppear {
+                store.setCanvasSize(geometry.size)
+            }
+            .onChange(of: geometry.size) { _, size in
+                store.setCanvasSize(size)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .layoutPriority(1)

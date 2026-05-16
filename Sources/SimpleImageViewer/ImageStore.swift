@@ -9,6 +9,7 @@ final class ImageStore: ObservableObject {
     @Published var status = "Open an image or folder"
     @Published var zoomScale = 1.0
     @Published var panOffset = CGSize.zero
+    @Published private var canvasSize = CGSize.zero
     @Published var includeSubfolders = false
     @Published var maxFolderDepth = 2
     @Published var maxPhotoCount = 0
@@ -29,6 +30,7 @@ final class ImageStore: ObservableObject {
     private var openCancellation: FolderDiscoveryCancellation?
     private var currentImageTask: ImageLoadingTask?
     private var viewportURL: URL?
+    private let imagePadding: CGFloat = 24
 
     var currentURL: URL? {
         images.indices.contains(currentIndex) ? images[currentIndex] : nil
@@ -247,6 +249,13 @@ final class ImageStore: ObservableObject {
         guard zoomScale > 1 else { return }
         panOffset.width += x
         panOffset.height += y
+        clampPanOffset()
+    }
+
+    func setCanvasSize(_ size: CGSize) {
+        guard canvasSize != size else { return }
+        canvasSize = size
+        clampPanOffset()
     }
 
     private func loadCurrent() {
@@ -264,6 +273,7 @@ final class ImageStore: ObservableObject {
                 guard let self, self.currentURL?.standardizedFileURL == currentURL.standardizedFileURL else { return }
                 self.currentImage = image
                 self.currentImageTask = nil
+                self.clampPanOffset()
             }
         }
         let loadingSuffix = isProgressivelyLoading ? ", still scanning..." : ""
@@ -275,6 +285,8 @@ final class ImageStore: ObservableObject {
         zoomScale = boundedScale
         if boundedScale <= 1 {
             panOffset = .zero
+        } else {
+            clampPanOffset()
         }
     }
 
@@ -283,6 +295,36 @@ final class ImageStore: ObservableObject {
         viewportURL = url
         zoomScale = 1
         panOffset = .zero
+    }
+
+    private func clampPanOffset() {
+        guard zoomScale > 1,
+              let currentImage,
+              canvasSize.width > 0,
+              canvasSize.height > 0
+        else {
+            if zoomScale <= 1 {
+                panOffset = .zero
+            }
+            return
+        }
+
+        let fittedSize = fittedImageSize(for: currentImage.size, in: canvasSize)
+        let maxX = max(0, (fittedSize.width * zoomScale - canvasSize.width) / 2)
+        let maxY = max(0, (fittedSize.height * zoomScale - canvasSize.height) / 2)
+        panOffset.width = min(max(panOffset.width, -maxX), maxX)
+        panOffset.height = min(max(panOffset.height, -maxY), maxY)
+    }
+
+    private func fittedImageSize(for imageSize: CGSize, in canvasSize: CGSize) -> CGSize {
+        let availableWidth = max(1, canvasSize.width - imagePadding * 2)
+        let availableHeight = max(1, canvasSize.height - imagePadding * 2)
+        guard imageSize.width > 0, imageSize.height > 0 else {
+            return CGSize(width: availableWidth, height: availableHeight)
+        }
+
+        let scale = min(availableWidth / imageSize.width, availableHeight / imageSize.height)
+        return CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
     }
 
     private func cancelCurrentImageLoad() {
