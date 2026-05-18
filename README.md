@@ -1,22 +1,24 @@
 # Simple Image Viewer
 
-**Simple Image Viewer** is a small macOS image viewer for quickly moving through a folder of images with the keyboard.
+**Simple Image Viewer** is a small macOS media viewer for quickly moving through a folder of images and videos with the keyboard.
 
 The acronym is **SIV**, pronounced like “sieve.”
 
 ## Features
 
-- Open an image and browse the other images in the same folder.
+- Open an image or video and browse the other media files in the same folder.
 - Open a folder directly.
-- Optionally include images from subfolders, with configurable folder-depth and total-photo limits.
+- Optionally include media from subfolders, with configurable folder-depth and total-photo limits.
 - Shows folder scan counts by level before loading a folder.
-- Sort loaded images by name, folder, modified date, or file type.
-- Filter loaded images by file type or filename text.
-- Move through images with left and right arrow keys.
+- Sort loaded media by name, folder, modified date, or file type.
+- Filter loaded media by kind, file type, or filename text.
+- Move through media with left and right arrow keys.
 - Shows a horizontal thumbnail rail.
+- Plays videos with native AVKit controls, cached playback positions, duration badges, and Space for play/pause.
 - Plays animated GIFs.
 - Uses natural filename order, so `image-10.png` comes after `image-09.png`.
 - Supports common image formats including PNG, JPEG, GIF, WebP, TIFF, BMP, HEIC, and HEIF.
+- Supports common video formats including MP4, MOV, M4V, AVI, MKV, and WebM when macOS can decode them.
 
 ## Requirements
 
@@ -35,17 +37,18 @@ This builds:
 dist/Simple Image Viewer.app
 ```
 
-Open a specific image or folder:
+Open a specific image, video, or folder:
 
 ```sh
 ./script/build_and_run.sh run /path/to/image.png
+./script/build_and_run.sh run /path/to/video.mp4
 ./script/build_and_run.sh run /path/to/folder
 ```
 
 When opening a folder from the app UI, Simple Image Viewer shows recursive scan
-options inside the native folder picker. Select a folder to preview image counts,
+options inside the native folder picker. Select a folder to preview media counts,
 then enable subfolders, choose the maximum depth, and cap the total number of
-photos loaded before opening it.
+media files loaded before opening it.
 
 Verify that the app builds and launches:
 
@@ -77,7 +80,7 @@ After building once:
 3. Under **Open with**, choose `dist/Simple Image Viewer.app`.
 4. Click **Change All...** if you want that file type to open with Simple Image Viewer by default.
 
-Repeat per file type if needed.
+Repeat per file type if needed. Video file types can be assigned the same way.
 
 ## Project Structure
 

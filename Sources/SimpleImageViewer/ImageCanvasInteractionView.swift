@@ -22,12 +22,7 @@ final class CanvasInteractionNSView: NSView {
     var onMagnify: ((Double) -> Void)?
     var onScroll: ((CGFloat, CGFloat) -> Void)?
 
-    override var acceptsFirstResponder: Bool { true }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        window?.makeFirstResponder(self)
-    }
+    override var acceptsFirstResponder: Bool { false }
 
     override func magnify(with event: NSEvent) {
         onMagnify?(Double(event.magnification))

@@ -24,6 +24,14 @@ struct SimpleImageViewerApp: App {
                 Button("Next Image") { appDelegate.navigateActiveWindow(1) }
                     .keyboardShortcut(.rightArrow, modifiers: [])
                 Divider()
+                Button("Zoom In") { appDelegate.zoomActiveWindowIn() }
+                    .keyboardShortcut("=", modifiers: [.command])
+                Button("Zoom Out") { appDelegate.zoomActiveWindowOut() }
+                    .keyboardShortcut("-", modifiers: [.command])
+                Divider()
+                Button("Play/Pause") { appDelegate.toggleActiveWindowPlayback() }
+                    .keyboardShortcut(.space, modifiers: [])
+                Divider()
                 Button("First Image") { appDelegate.selectFirstInActiveWindow() }
                     .keyboardShortcut(.leftArrow, modifiers: [.command])
                 Button("Last Image") {

@@ -28,4 +28,19 @@ extension NSEvent {
     var hasViewerNavigationModifier: Bool {
         !modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
     }
+
+    var hasCommandOnlyModifier: Bool {
+        let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
+        return flags.contains(.command) &&
+            !flags.contains(.control) &&
+            !flags.contains(.option) &&
+            !flags.contains(.shift)
+    }
+
+    var hasCommandZoomModifier: Bool {
+        let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
+        return flags.contains(.command) &&
+            !flags.contains(.control) &&
+            !flags.contains(.option)
+    }
 }

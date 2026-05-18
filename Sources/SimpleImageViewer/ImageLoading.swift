@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import ImageIO
 
 final class ImageLoadingTask {
@@ -226,6 +227,10 @@ final class ThumbnailCache {
     }
 
     private static func makeThumbnail(for url: URL) -> NSImage? {
+        if url.isVideoForViewer {
+            return makeVideoThumbnail(for: url)
+        }
+
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(url as CFURL, options) else {
             return nil
@@ -242,6 +247,27 @@ final class ThumbnailCache {
             return nil
         }
 
+        return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+    }
+
+    private static func makeVideoThumbnail(for url: URL) -> NSImage? {
+        let asset = AVURLAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 320, height: 320)
+
+        let time = CMTime(seconds: 0, preferredTimescale: 600)
+        let semaphore = DispatchSemaphore(value: 0)
+        var generatedImage: CGImage?
+        generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: time)]) { _, image, _, _, _ in
+            generatedImage = image
+            semaphore.signal()
+        }
+        semaphore.wait()
+
+        guard let image = generatedImage else {
+            return nil
+        }
         return NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
     }
 }

@@ -62,6 +62,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sessionCoordinator.navigateActiveWindow(delta)
     }
 
+    func zoomActiveWindowIn() {
+        sessionCoordinator.zoomActiveWindowIn()
+    }
+
+    func zoomActiveWindowOut() {
+        sessionCoordinator.zoomActiveWindowOut()
+    }
+
+    func toggleActiveWindowPlayback() {
+        sessionCoordinator.toggleActiveWindowPlayback()
+    }
+
     func selectFirstInActiveWindow() {
         sessionCoordinator.selectFirstInActiveWindow()
     }
@@ -81,6 +93,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
+        if event.hasCommandZoomModifier {
+            switch event.charactersIgnoringModifiers {
+            case "=", "+":
+                sessionCoordinator.zoomActiveWindowIn()
+                return nil
+            case "-":
+                sessionCoordinator.zoomActiveWindowOut()
+                return nil
+            default:
+                break
+            }
+
+            switch event.keyCode {
+            case 24:
+                sessionCoordinator.zoomActiveWindowIn()
+                return nil
+            case 27:
+                sessionCoordinator.zoomActiveWindowOut()
+                return nil
+            case 69:
+                sessionCoordinator.zoomActiveWindowIn()
+                return nil
+            case 78:
+                sessionCoordinator.zoomActiveWindowOut()
+                return nil
+            default:
+                break
+            }
+        }
+
         guard !event.hasViewerNavigationModifier else {
             return event
         }
@@ -90,6 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         switch event.keyCode {
+        case 49:
+            sessionCoordinator.toggleActiveWindowPlayback()
+            return nil
         case 123:
             return sessionCoordinator.navigate(-1, in: event.window ?? NSApp.keyWindow) ? nil : event
         case 124:

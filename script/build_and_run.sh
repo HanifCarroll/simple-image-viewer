@@ -42,7 +42,9 @@ swiftc -parse-as-library "$ROOT_DIR"/Sources/SimpleImageViewer/*.swift \
   -o "$EXECUTABLE" \
   -framework SwiftUI \
   -framework AppKit \
-  -framework UniformTypeIdentifiers
+  -framework UniformTypeIdentifiers \
+  -framework AVFoundation \
+  -framework AVKit
 
 if [[ -f "$ROOT_DIR/Assets/AppIcon.png" ]]; then
   ICONSET="$DIST_DIR/AppIcon.iconset"
@@ -99,6 +101,18 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
         <string>public.image</string>
       </array>
     </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Movie</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>public.movie</string>
+      </array>
+    </dict>
   </array>
 </dict>
 </plist>
@@ -134,11 +148,13 @@ create_verify_fixtures() {
 
 verify_image_code_paths() {
   swiftc "$ROOT_DIR/Sources/SimpleImageViewer/ImageDiscovery.swift" \
+    "$ROOT_DIR/Sources/SimpleImageViewer/MediaSupport.swift" \
     "$ROOT_DIR/Sources/SimpleImageViewer/ImageListPresentation.swift" \
     "$ROOT_DIR/Sources/SimpleImageViewer/ImageOpeningService.swift" \
     "$ROOT_DIR/script/verify_image_discovery.swift" \
     -o "$VERIFY_HELPER" \
-    -framework AppKit
+    -framework AppKit \
+    -framework AVFoundation
   "$VERIFY_HELPER" "$VERIFY_FIXTURE_DIR"
 }
 

@@ -70,7 +70,7 @@ final class FolderOpenAccessoryView: NSView {
     private let depthHelpLabel = NSTextField(labelWithString: "")
     private let photoLimitValueLabel = NSTextField(labelWithString: "No limit")
     private let photoLimitStepper = NSStepper()
-    private let summaryLabel = NSTextField(wrappingLabelWithString: "Select a folder to preview image counts.")
+    private let summaryLabel = NSTextField(wrappingLabelWithString: "Select a folder to preview media counts.")
     private let levelsLabel = NSTextField(wrappingLabelWithString: "")
     private let depthRow = NSStackView()
     private var scanGeneration = 0
@@ -210,16 +210,16 @@ final class FolderOpenAccessoryView: NSView {
         photoLimitValueLabel.stringValue = model.maxPhotoCount <= 0 ? "No limit" : model.maxPhotoCount.formatted()
 
         guard let summary = model.summary else {
-            summaryLabel.stringValue = "Select a folder to preview image counts."
+            summaryLabel.stringValue = "Select a folder to preview media counts."
             levelsLabel.stringValue = ""
             return
         }
 
         if model.includeSubfolders {
-            summaryLabel.stringValue = "Will load \(model.cappedImageCount.formatted()) of \(model.includedImageCount.formatted()) included images."
+            summaryLabel.stringValue = "Will load \(model.cappedImageCount.formatted()) of \(model.includedImageCount.formatted()) included media files."
             levelsLabel.stringValue = levelTableText(for: summary)
         } else {
-            summaryLabel.stringValue = "\(model.selectedFolderImageCount.formatted()) images in selected folder."
+            summaryLabel.stringValue = "\(model.selectedFolderImageCount.formatted()) media files in selected folder."
             levelsLabel.stringValue = ""
         }
     }
@@ -252,7 +252,7 @@ final class FolderOpenAccessoryView: NSView {
                 load
             )
         }
-        return (["Level    Images   Folders  Load"] + rows).joined(separator: "\n")
+        return (["Level     Media   Folders  Load"] + rows).joined(separator: "\n")
     }
 }
 

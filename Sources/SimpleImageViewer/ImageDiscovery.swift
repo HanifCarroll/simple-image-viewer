@@ -1,8 +1,5 @@
 import Foundation
 
-private let supportedExtensions: Set<String> = [
-    "png", "jpg", "jpeg", "heic", "heif", "webp", "gif", "tif", "tiff", "bmp"
-]
 private let summaryImageIndexLimit = 20_000
 private let summaryMaximumDepth = 64
 
@@ -188,7 +185,7 @@ private final class FolderDiscoveryScanner {
 
             levels[item.depth, default: LevelCounts()].folders += 1
             let entries = directoryEntries(in: item.url)
-            for imageURL in entries where isSupportedImage(imageURL) {
+            for imageURL in entries where MediaSupport.isSupportedFile(imageURL) {
                 guard !isCancelled else { break }
                 guard maxImages <= 0 || discoveredImageCount < maxImages else { break }
                 discoveredImageCount += 1
@@ -268,12 +265,6 @@ private func directoryEntries(in folderURL: URL) -> [URL] {
         options: [.skipsHiddenFiles, .skipsPackageDescendants]
     )) ?? [])
     .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-}
-
-private func isSupportedImage(_ url: URL) -> Bool {
-    guard supportedExtensions.contains(url.pathExtension.lowercased()) else { return false }
-    let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-    return values?.isRegularFile == true && values?.isSymbolicLink != true
 }
 
 private func isTraversableDirectory(_ url: URL) -> Bool {

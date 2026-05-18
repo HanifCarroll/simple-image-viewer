@@ -7,7 +7,7 @@ enum CurrentImagePresenter {
         visibleCount: Int
     ) -> String {
         guard let url else {
-            return "Loaded \(visibleCount) images, still scanning..."
+            return "Loaded \(visibleCount) media files, still scanning..."
         }
         return status(for: url, index: index, visibleCount: visibleCount, isProgressivelyLoading: true)
     }

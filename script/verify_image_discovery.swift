@@ -92,6 +92,7 @@ struct VerifyImageDiscovery {
         let pngOptions = ImageViewOptions(
             sortOption: .name,
             sortAscending: true,
+            mediaKindFilter: MediaSupport.allKindsFilter,
             typeFilter: "PNG",
             nameFilter: "image-03"
         )

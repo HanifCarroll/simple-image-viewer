@@ -40,7 +40,7 @@ struct ContentView: View {
             Button("+") { store.zoomIn() }
                 .frame(width: 28)
         }
-        .disabled(store.currentURL == nil)
+        .disabled(store.currentURL == nil || store.currentMediaKind == .video)
     }
 
     private var viewerOptions: some View {
@@ -57,6 +57,14 @@ struct ContentView: View {
                 store.toggleSortDirection()
             }
             .frame(width: 54)
+
+            Picker("Kind", selection: $store.mediaKindFilter) {
+                ForEach(store.availableMediaKindFilters, id: \.self) { kind in
+                    Text(kind).tag(kind)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 92)
 
             Picker("Type", selection: $store.typeFilter) {
                 ForEach(store.availableTypeFilters, id: \.self) { type in
@@ -102,7 +110,26 @@ struct ContentView: View {
 
     @ViewBuilder
     private var imageContent: some View {
-        if let url = store.currentURL, url.isGIF {
+        if let url = store.currentURL, url.isVideoForViewer {
+            ZStack(alignment: .bottomTrailing) {
+                VideoPlayerView(
+                    url: url,
+                    startTime: store.playbackPosition(for: url),
+                    playbackCommandID: store.playbackCommandID,
+                    onPositionChange: { store.updatePlaybackPosition($0, for: url) }
+                )
+                .padding(24)
+
+                if !store.currentVideoDurationText.isEmpty {
+                    Text(store.currentVideoDurationText)
+                        .font(.caption.monospacedDigit())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(34)
+                }
+            }
+        } else if let url = store.currentURL, url.isGIFForViewer {
             AnimatedImageView(url: url)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(24)
@@ -162,11 +189,5 @@ struct ContentView: View {
         let lowerBound = max(store.images.startIndex, index - 24)
         let upperBound = min(store.images.index(before: store.images.endIndex), index + 48)
         ThumbnailCache.shared.preheat(Array(store.images[lowerBound...upperBound]))
-    }
-}
-
-private extension URL {
-    var isGIF: Bool {
-        pathExtension.caseInsensitiveCompare("gif") == .orderedSame
     }
 }

@@ -28,6 +28,9 @@ struct ThumbnailButton: View {
                         .padding(18)
                         .opacity(0.45)
                 }
+                if url.isVideoForViewer {
+                    videoBadge
+                }
             }
             .frame(width: 70, height: 70)
             .padding(4)
@@ -45,10 +48,31 @@ struct ThumbnailButton: View {
             loader.cancel()
         }
     }
+
+    private var videoBadge: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 9, weight: .bold))
+                Spacer(minLength: 4)
+                if !loader.durationText.isEmpty {
+                    Text(loader.durationText)
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(.black.opacity(0.62), in: Capsule())
+            .padding(7)
+        }
+    }
 }
 
 private final class ThumbnailLoader: ObservableObject {
     @Published var image: NSImage?
+    @Published var durationText = ""
 
     private var loadingURL: URL?
 
@@ -58,6 +82,8 @@ private final class ThumbnailLoader: ObservableObject {
         }
 
         loadingURL = url
+        durationText = ""
+        loadDurationIfNeeded(for: url)
         if let cached = ThumbnailCache.shared.image(for: url) {
             image = cached
             return
@@ -72,5 +98,13 @@ private final class ThumbnailLoader: ObservableObject {
 
     func cancel() {
         loadingURL = nil
+    }
+
+    private func loadDurationIfNeeded(for url: URL) {
+        guard url.isVideoForViewer else { return }
+        VideoMetadataCache.shared.duration(for: url) { [weak self] seconds in
+            guard let self, self.loadingURL == url else { return }
+            self.durationText = seconds.map(MediaSupport.durationText(for:)) ?? ""
+        }
     }
 }

@@ -12,12 +12,14 @@ enum ImageSortOption: String, CaseIterable, Identifiable {
 struct ImageViewOptions {
     var sortOption: ImageSortOption
     var sortAscending: Bool
+    var mediaKindFilter: String
     var typeFilter: String
     var nameFilter: String
 
     var usesDefaultProjection: Bool {
         sortOption == .name &&
             sortAscending &&
+            mediaKindFilter == MediaSupport.allKindsFilter &&
             typeFilter == ImageListPresenter.allTypesFilter &&
             nameFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -31,6 +33,11 @@ enum ImageListPresenter {
         return [allTypesFilter] + extensions.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
+    static func availableMediaKindFilters(for urls: [URL]) -> [String] {
+        let kinds = Set(urls.compactMap { $0.mediaKind?.rawValue })
+        return [MediaSupport.allKindsFilter] + kinds.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
     static func project(_ urls: [URL], using options: ImageViewOptions) -> [URL] {
         sort(filter(urls, using: options), using: options)
     }
@@ -42,10 +49,12 @@ enum ImageListPresenter {
     private static func filter(_ urls: [URL], using options: ImageViewOptions) -> [URL] {
         let isNameFilterEmpty = options.nameFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         return urls.filter { url in
+            let matchesKind = options.mediaKindFilter == MediaSupport.allKindsFilter ||
+                url.mediaKind?.rawValue == options.mediaKindFilter
             let matchesType = options.typeFilter == allTypesFilter || normalizedType(url) == options.typeFilter
             let matchesName = isNameFilterEmpty ||
                 url.lastPathComponent.localizedCaseInsensitiveContains(options.nameFilter)
-            return matchesType && matchesName
+            return matchesKind && matchesType && matchesName
         }
     }
 

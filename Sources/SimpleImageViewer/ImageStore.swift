@@ -19,17 +19,23 @@ final class ImageStore: ObservableObject {
     @Published var sortAscending = true {
         didSet { applyViewOptions(preserving: currentURL) }
     }
+    @Published var mediaKindFilter = MediaSupport.allKindsFilter {
+        didSet { applyViewOptions(preserving: currentURL) }
+    }
     @Published var typeFilter = ImageListPresenter.allTypesFilter {
         didSet { applyViewOptions(preserving: currentURL) }
     }
     @Published var nameFilter = "" {
         didSet { applyViewOptions(preserving: currentURL) }
     }
+    @Published var currentVideoDurationText = ""
+    @Published var playbackCommandID = 0
     private var openGeneration = 0
     private var isProgressivelyLoading = false
     private var openCancellation: FolderDiscoveryCancellation?
     private var currentImageTask: ImageLoadingTask?
     private var viewportURL: URL?
+    private var playbackPositions: [URL: Double] = [:]
     private let imagePadding: CGFloat = 24
 
     var currentURL: URL? {
@@ -46,6 +52,14 @@ final class ImageStore: ObservableObject {
 
     var availableTypeFilters: [String] {
         ImageListPresenter.availableTypeFilters(for: allImages)
+    }
+
+    var availableMediaKindFilters: [String] {
+        ImageListPresenter.availableMediaKindFilters(for: allImages)
+    }
+
+    var currentMediaKind: MediaKind? {
+        currentURL?.mediaKind
     }
 
     func open(_ url: URL) {
@@ -74,9 +88,10 @@ final class ImageStore: ObservableObject {
     }
 
     private func resetForOpening() {
-        status = "Loading images..."
+        status = "Loading media..."
         cancelCurrentImageLoad()
         currentImage = nil
+        currentVideoDurationText = ""
         images = []
         allImages = []
         currentIndex = 0
@@ -87,6 +102,7 @@ final class ImageStore: ObservableObject {
         ImageViewOptions(
             sortOption: sortOption,
             sortAscending: sortAscending,
+            mediaKindFilter: mediaKindFilter,
             typeFilter: typeFilter,
             nameFilter: nameFilter
         )
@@ -136,7 +152,7 @@ final class ImageStore: ObservableObject {
             currentIndex = 0
             cancelCurrentImageLoad()
             currentImage = nil
-            status = "No supported images found"
+            status = "No supported media found"
             return
         }
 
@@ -162,12 +178,12 @@ final class ImageStore: ObservableObject {
             if images.isEmpty {
                 cancelCurrentImageLoad()
                 currentImage = nil
-                status = "No supported images found"
+                status = "No supported media found"
             } else {
                 loadCurrent()
             }
         } else if currentImage == nil {
-            status = "Loading images..."
+            status = "Loading media..."
         }
     }
 
@@ -176,7 +192,7 @@ final class ImageStore: ObservableObject {
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
-        panel.allowedContentTypes = [.image]
+        panel.allowedContentTypes = [.image, .movie]
         panel.prompt = "Open"
         let accessoryModel = FolderOpenAccessoryModel(
             includeSubfolders: includeSubfolders,
@@ -241,6 +257,20 @@ final class ImageStore: ObservableObject {
         panOffset = .zero
     }
 
+    func togglePlayback() {
+        guard currentURL?.isVideoForViewer == true else { return }
+        playbackCommandID += 1
+    }
+
+    func updatePlaybackPosition(_ seconds: Double, for url: URL) {
+        guard seconds.isFinite, seconds >= 0 else { return }
+        playbackPositions[url.standardizedFileURL] = seconds
+    }
+
+    func playbackPosition(for url: URL) -> Double {
+        playbackPositions[url.standardizedFileURL] ?? 0
+    }
+
     func magnify(by amount: Double) {
         setZoomScale(zoomScale * (1 + amount))
     }
@@ -262,8 +292,12 @@ final class ImageStore: ObservableObject {
         guard let currentURL else { return }
         resetViewportIfNeeded(for: currentURL)
         cancelCurrentImageLoad()
+        currentVideoDurationText = ""
 
-        if currentURL.isGIFForViewer {
+        if currentURL.isVideoForViewer {
+            currentImage = nil
+            loadVideoDuration(for: currentURL)
+        } else if currentURL.isGIFForViewer {
             currentImage = nil
         } else if let cached = ImageLoadingService.shared.cachedDisplayImage(for: currentURL) {
             currentImage = cached
@@ -278,6 +312,13 @@ final class ImageStore: ObservableObject {
         }
         let loadingSuffix = isProgressivelyLoading ? ", still scanning..." : ""
         status = "\(currentURL.lastPathComponent)  (\(currentIndex + 1) of \(images.count)\(loadingSuffix))"
+    }
+
+    private func loadVideoDuration(for url: URL) {
+        VideoMetadataCache.shared.duration(for: url) { [weak self] seconds in
+            guard let self, self.currentURL?.standardizedFileURL == url.standardizedFileURL else { return }
+            self.currentVideoDurationText = seconds.map(MediaSupport.durationText(for:)) ?? ""
+        }
     }
 
     private func setZoomScale(_ scale: Double) {
@@ -355,7 +396,8 @@ final class ImageStore: ObservableObject {
         guard !images.isEmpty else {
             currentIndex = 0
             currentImage = nil
-            status = "No images match the current filters"
+            currentVideoDurationText = ""
+            status = "No media matches the current filters"
             return
         }
         if let preferredURL,
@@ -366,11 +408,5 @@ final class ImageStore: ObservableObject {
         }
         CurrentImagePresenter.warmInitialThumbnails(images: images, currentIndex: currentIndex)
         loadCurrent()
-    }
-}
-
-private extension URL {
-    var isGIFForViewer: Bool {
-        pathExtension.caseInsensitiveCompare("gif") == .orderedSame
     }
 }

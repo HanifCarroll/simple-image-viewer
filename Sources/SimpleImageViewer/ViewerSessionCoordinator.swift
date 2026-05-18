@@ -150,6 +150,18 @@ final class ViewerSessionCoordinator {
         activeSession()?.store.navigate(delta)
     }
 
+    func zoomActiveWindowIn() {
+        activeSession()?.store.zoomIn()
+    }
+
+    func zoomActiveWindowOut() {
+        activeSession()?.store.zoomOut()
+    }
+
+    func toggleActiveWindowPlayback() {
+        activeSession()?.store.togglePlayback()
+    }
+
     @discardableResult
     func navigate(_ delta: Int, in window: NSWindow?) -> Bool {
         guard let session = session(for: window) else { return false }
