@@ -90,6 +90,14 @@ struct VideoPlayerView: NSViewRepresentable {
         private func togglePlayback() {
             guard let player else { return }
             if player.rate == 0 {
+                let currentSeconds = player.currentTime().seconds
+                let durationSeconds = player.currentItem?.duration.seconds ?? 0
+                if currentSeconds.isFinite,
+                   durationSeconds.isFinite,
+                   durationSeconds > 0,
+                   currentSeconds >= durationSeconds - 0.1 {
+                    player.seek(to: .zero)
+                }
                 player.play()
             } else {
                 player.pause()

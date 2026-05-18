@@ -91,10 +91,12 @@ struct ContentView: View {
                 imageContent
                     .scaleEffect(store.zoomScale)
                     .offset(store.panOffset)
-                ImageCanvasInteractionView(
-                    onMagnify: { store.magnify(by: $0) },
-                    onScroll: { store.panBy(x: $0, y: $1) }
-                )
+                if store.currentMediaKind != .video {
+                    ImageCanvasInteractionView(
+                        onMagnify: { store.magnify(by: $0) },
+                        onScroll: { store.panBy(x: $0, y: $1) }
+                    )
+                }
             }
             .onAppear {
                 store.setCanvasSize(geometry.size)
