@@ -223,71 +223,6 @@ final class ImageStore: ObservableObject {
         }
     }
 
-    func navigate(_ delta: Int) {
-        let next = currentIndex + delta
-        guard images.indices.contains(next) else { return }
-        currentIndex = next
-        loadCurrent()
-    }
-
-    func select(_ index: Int) {
-        guard images.indices.contains(index) else { return }
-        currentIndex = index
-        loadCurrent()
-    }
-
-    func toggleSortDirection() {
-        sortAscending.toggle()
-    }
-
-    func clearNameFilter() {
-        nameFilter = ""
-    }
-
-    func zoomIn() {
-        setZoomScale(zoomScale * 1.25)
-    }
-
-    func zoomOut() {
-        setZoomScale(zoomScale / 1.25)
-    }
-
-    func resetZoom() {
-        setZoomScale(1)
-        panOffset = .zero
-    }
-
-    func togglePlayback() {
-        guard currentURL?.isVideoForViewer == true else { return }
-        playbackCommandID += 1
-    }
-
-    func updatePlaybackPosition(_ seconds: Double, for url: URL) {
-        guard seconds.isFinite, seconds >= 0 else { return }
-        playbackPositions[url.standardizedFileURL] = seconds
-    }
-
-    func playbackPosition(for url: URL) -> Double {
-        playbackPositions[url.standardizedFileURL] ?? 0
-    }
-
-    func magnify(by amount: Double) {
-        setZoomScale(zoomScale * (1 + amount))
-    }
-
-    func panBy(x: CGFloat, y: CGFloat) {
-        guard zoomScale > 1 else { return }
-        panOffset.width += x
-        panOffset.height += y
-        clampPanOffset()
-    }
-
-    func setCanvasSize(_ size: CGSize) {
-        guard canvasSize != size else { return }
-        canvasSize = size
-        clampPanOffset()
-    }
-
     private func loadCurrent() {
         guard let currentURL else { return }
         resetViewportIfNeeded(for: currentURL)
@@ -408,5 +343,87 @@ final class ImageStore: ObservableObject {
         }
         CurrentImagePresenter.warmInitialThumbnails(images: images, currentIndex: currentIndex)
         loadCurrent()
+    }
+}
+
+extension ImageStore {
+    var canCopyCurrentImage: Bool {
+        guard let currentURL else { return false }
+        return !currentURL.isVideoForViewer
+    }
+
+    @discardableResult
+    func copyCurrentImageToPasteboard() -> Bool {
+        guard canCopyCurrentImage else { return false }
+        guard let image = currentImage ?? currentURL.flatMap(NSImage.init(contentsOf:)) else { return false }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.writeObjects([image])
+    }
+
+    func navigate(_ delta: Int) {
+        let next = currentIndex + delta
+        guard images.indices.contains(next) else { return }
+        currentIndex = next
+        loadCurrent()
+    }
+
+    func select(_ index: Int) {
+        guard images.indices.contains(index) else { return }
+        currentIndex = index
+        loadCurrent()
+    }
+
+    func toggleSortDirection() {
+        sortAscending.toggle()
+    }
+
+    func clearNameFilter() {
+        nameFilter = ""
+    }
+
+    func zoomIn() {
+        setZoomScale(zoomScale * 1.25)
+    }
+
+    func zoomOut() {
+        setZoomScale(zoomScale / 1.25)
+    }
+
+    func resetZoom() {
+        setZoomScale(1)
+        panOffset = .zero
+    }
+
+    func togglePlayback() {
+        guard currentURL?.isVideoForViewer == true else { return }
+        playbackCommandID += 1
+    }
+
+    func updatePlaybackPosition(_ seconds: Double, for url: URL) {
+        guard seconds.isFinite, seconds >= 0 else { return }
+        playbackPositions[url.standardizedFileURL] = seconds
+    }
+
+    func playbackPosition(for url: URL) -> Double {
+        playbackPositions[url.standardizedFileURL] ?? 0
+    }
+
+    func magnify(by amount: Double) {
+        setZoomScale(zoomScale * (1 + amount))
+    }
+
+    func panBy(deltaX: CGFloat, deltaY: CGFloat) {
+        guard zoomScale > 1 else { return }
+        panOffset.width += deltaX
+        panOffset.height += deltaY
+        clampPanOffset()
+    }
+
+    func setCanvasSize(_ size: CGSize) {
+        guard canvasSize != size else { return }
+        canvasSize = size
+        clampPanOffset()
     }
 }

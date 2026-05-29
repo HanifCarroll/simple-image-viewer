@@ -4,6 +4,12 @@ final class ViewerWindow: NSWindow {
     weak var sessionCoordinator: ViewerSessionCoordinator?
 
     override func keyDown(with event: NSEvent) {
+        if event.hasCommandOnlyModifier,
+           event.charactersIgnoringModifiers?.lowercased() == "c",
+           sessionCoordinator?.copyActiveWindowImageToPasteboard() == true {
+            return
+        }
+
         guard !event.hasViewerNavigationModifier else {
             super.keyDown(with: event)
             return
@@ -21,6 +27,26 @@ final class ViewerWindow: NSWindow {
         default:
             super.keyDown(with: event)
         }
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        guard event.type == .rightMouseDown,
+              sessionCoordinator?.canCopyActiveWindowImage == true,
+              let contentView
+        else {
+            super.sendEvent(event)
+            return
+        }
+
+        let menu = NSMenu()
+        let item = NSMenuItem(title: "Copy Image", action: #selector(copyImage), keyEquivalent: "")
+        item.target = self
+        menu.addItem(item)
+        NSMenu.popUpContextMenu(menu, with: event, for: contentView)
+    }
+
+    @objc private func copyImage() {
+        sessionCoordinator?.copyActiveWindowImageToPasteboard()
     }
 }
 

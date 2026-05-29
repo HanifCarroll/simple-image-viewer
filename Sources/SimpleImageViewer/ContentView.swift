@@ -94,8 +94,11 @@ struct ContentView: View {
                 if store.currentMediaKind != .video {
                     ImageCanvasInteractionView(
                         onMagnify: { store.magnify(by: $0) },
-                        onScroll: { store.panBy(x: $0, y: $1) }
+                        onScroll: { store.panBy(deltaX: $0, deltaY: $1) },
+                        onCopy: { store.copyCurrentImageToPasteboard() },
+                        canCopy: { store.canCopyCurrentImage }
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .onAppear {
@@ -103,6 +106,12 @@ struct ContentView: View {
             }
             .onChange(of: geometry.size) { _, size in
                 store.setCanvasSize(size)
+            }
+            .contextMenu {
+                Button("Copy Image") {
+                    store.copyCurrentImageToPasteboard()
+                }
+                .disabled(!store.canCopyCurrentImage)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

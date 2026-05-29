@@ -74,6 +74,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sessionCoordinator.toggleActiveWindowPlayback()
     }
 
+    var canCopyActiveWindowImage: Bool {
+        !isTextInputActive(in: NSApp.keyWindow) && sessionCoordinator.canCopyActiveWindowImage
+    }
+
+    @discardableResult
+    func copyActiveWindowImageToPasteboard() -> Bool {
+        guard canCopyActiveWindowImage else { return false }
+        return sessionCoordinator.copyActiveWindowImageToPasteboard()
+    }
+
     func selectFirstInActiveWindow() {
         sessionCoordinator.selectFirstInActiveWindow()
     }
@@ -93,6 +103,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
+        if event.hasCommandOnlyModifier,
+           event.charactersIgnoringModifiers?.lowercased() == "c" {
+            return copyActiveWindowImageToPasteboard() ? nil : event
+        }
+
         if event.hasCommandZoomModifier {
             switch event.charactersIgnoringModifiers {
             case "=", "+":
@@ -162,9 +177,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             let width = min(window.frame.width, maxWidth)
             let height = min(window.frame.height, maxHeight)
-            let x = visibleFrame.midX - width / 2
-            let y = visibleFrame.midY - height / 2
-            window.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
+            let originX = visibleFrame.midX - width / 2
+            let originY = visibleFrame.midY - height / 2
+            window.setFrame(NSRect(x: originX, y: originY, width: width, height: height), display: true)
         }
     }
 }

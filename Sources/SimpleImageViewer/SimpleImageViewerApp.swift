@@ -18,6 +18,10 @@ struct SimpleImageViewerApp: App {
                 Button("Open in New Viewer...") { appDelegate.openPanelInNewWindow() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
             }
+            CommandGroup(replacing: .pasteboard) {
+                Button("Copy Image") { appDelegate.copyActiveWindowImageToPasteboard() }
+                    .keyboardShortcut("c", modifiers: [.command])
+            }
             CommandMenu("Navigate") {
                 Button("Previous Image") { appDelegate.navigateActiveWindow(-1) }
                     .keyboardShortcut(.leftArrow, modifiers: [])

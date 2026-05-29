@@ -162,6 +162,25 @@ final class ViewerSessionCoordinator {
         activeSession()?.store.togglePlayback()
     }
 
+    var canCopyActiveWindowImage: Bool {
+        canCopyImage(in: NSApp.keyWindow ?? NSApp.mainWindow) || activeSession()?.store.canCopyCurrentImage == true
+    }
+
+    func canCopyImage(in window: NSWindow?) -> Bool {
+        session(for: window)?.store.canCopyCurrentImage == true
+    }
+
+    @discardableResult
+    func copyActiveWindowImageToPasteboard() -> Bool {
+        copyImageToPasteboard(in: NSApp.keyWindow ?? NSApp.mainWindow) ||
+            activeSession()?.store.copyCurrentImageToPasteboard() == true
+    }
+
+    @discardableResult
+    func copyImageToPasteboard(in window: NSWindow?) -> Bool {
+        session(for: window)?.store.copyCurrentImageToPasteboard() == true
+    }
+
     @discardableResult
     func navigate(_ delta: Int, in window: NSWindow?) -> Bool {
         guard let session = session(for: window) else { return false }
