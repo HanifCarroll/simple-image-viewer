@@ -6,6 +6,7 @@ final class ImageStore: ObservableObject {
     @Published var images: [URL] = []
     @Published var currentIndex = 0
     @Published var currentImage: NSImage?
+    @Published private var imageRotations: [URL: Int] = [:]
     @Published var status = "Open an image or folder"
     @Published var zoomScale = 1.0
     @Published var panOffset = CGSize.zero
@@ -43,7 +44,7 @@ final class ImageStore: ObservableObject {
     }
 
     var windowTitle: String {
-        currentURL?.lastPathComponent ?? "Simple Image Viewer"
+        currentURL?.lastPathComponent ?? "Folder Image Viewer"
     }
 
     var hasOpenedContent: Bool {
@@ -60,6 +61,19 @@ final class ImageStore: ObservableObject {
 
     var currentMediaKind: MediaKind? {
         currentURL?.mediaKind
+    }
+
+    var canRotateCurrentImage: Bool {
+        currentMediaKind == .image
+    }
+
+    var currentRotationDegrees: Int {
+        currentQuarterTurns * 90
+    }
+
+    private var currentQuarterTurns: Int {
+        guard let currentURL else { return 0 }
+        return imageRotations[currentURL.standardizedFileURL] ?? 0
     }
 
     func open(_ url: URL) {
@@ -285,11 +299,19 @@ final class ImageStore: ObservableObject {
             return
         }
 
-        let fittedSize = fittedImageSize(for: currentImage.size, in: canvasSize)
+        let fittedSize = fittedImageSize(for: displaySize(for: currentImage), in: canvasSize)
         let maxX = max(0, (fittedSize.width * zoomScale - canvasSize.width) / 2)
         let maxY = max(0, (fittedSize.height * zoomScale - canvasSize.height) / 2)
         panOffset.width = min(max(panOffset.width, -maxX), maxX)
         panOffset.height = min(max(panOffset.height, -maxY), maxY)
+    }
+
+    private func displaySize(for image: NSImage) -> CGSize {
+        let size = image.size
+        guard currentQuarterTurns.isMultiple(of: 2) else {
+            return CGSize(width: size.height, height: size.width)
+        }
+        return size
     }
 
     private func fittedImageSize(for imageSize: CGSize, in canvasSize: CGSize) -> CGSize {
@@ -356,10 +378,31 @@ extension ImageStore {
     func copyCurrentImageToPasteboard() -> Bool {
         guard canCopyCurrentImage else { return false }
         guard let image = currentImage ?? currentURL.flatMap(NSImage.init(contentsOf:)) else { return false }
+        let pasteboardImage = ImageRotation.rotated(image, quarterTurns: currentQuarterTurns)
 
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        return pasteboard.writeObjects([image])
+        return pasteboard.writeObjects([pasteboardImage])
+    }
+
+    @discardableResult
+    func rotateCurrentImage(clockwise: Bool) -> Bool {
+        guard canRotateCurrentImage, let currentURL else { return false }
+
+        let key = currentURL.standardizedFileURL
+        let nextQuarterTurns = ImageRotation.normalizedQuarterTurns(
+            (imageRotations[key] ?? 0) + (clockwise ? 1 : -1)
+        )
+        var rotations = imageRotations
+        if nextQuarterTurns == 0 {
+            rotations.removeValue(forKey: key)
+        } else {
+            rotations[key] = nextQuarterTurns
+        }
+        imageRotations = rotations
+        panOffset = .zero
+        clampPanOffset()
+        return true
     }
 
     func navigate(_ delta: Int) {

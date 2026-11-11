@@ -22,6 +22,7 @@ struct ContentView: View {
                 .lineLimit(1)
             Spacer()
             zoomControls
+            rotationControls
             if !store.allImages.isEmpty {
                 viewerOptions
             }
@@ -41,6 +42,27 @@ struct ContentView: View {
                 .frame(width: 28)
         }
         .disabled(store.currentURL == nil || store.currentMediaKind == .video)
+    }
+
+    private var rotationControls: some View {
+        HStack(spacing: 4) {
+            Button {
+                store.rotateCurrentImage(clockwise: false)
+            } label: {
+                Image(systemName: "rotate.left")
+            }
+            .frame(width: 28)
+            .help("Rotate Left")
+
+            Button {
+                store.rotateCurrentImage(clockwise: true)
+            } label: {
+                Image(systemName: "rotate.right")
+            }
+            .frame(width: 28)
+            .help("Rotate Right")
+        }
+        .disabled(!store.canRotateCurrentImage)
     }
 
     private var viewerOptions: some View {
@@ -96,7 +118,10 @@ struct ContentView: View {
                         onMagnify: { store.magnify(by: $0) },
                         onScroll: { store.panBy(deltaX: $0, deltaY: $1) },
                         onCopy: { store.copyCurrentImageToPasteboard() },
-                        canCopy: { store.canCopyCurrentImage }
+                        onRotateLeft: { store.rotateCurrentImage(clockwise: false) },
+                        onRotateRight: { store.rotateCurrentImage(clockwise: true) },
+                        canCopy: { store.canCopyCurrentImage },
+                        canRotate: { store.canRotateCurrentImage }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -108,6 +133,18 @@ struct ContentView: View {
                 store.setCanvasSize(size)
             }
             .contextMenu {
+                Button("Rotate Left") {
+                    store.rotateCurrentImage(clockwise: false)
+                }
+                .disabled(!store.canRotateCurrentImage)
+
+                Button("Rotate Right") {
+                    store.rotateCurrentImage(clockwise: true)
+                }
+                .disabled(!store.canRotateCurrentImage)
+
+                Divider()
+
                 Button("Copy Image") {
                     store.copyCurrentImageToPasteboard()
                 }
@@ -141,14 +178,18 @@ struct ContentView: View {
                 }
             }
         } else if let url = store.currentURL, url.isGIFForViewer {
-            AnimatedImageView(url: url)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(24)
+            RotatedMediaView(rotationDegrees: store.currentRotationDegrees) {
+                AnimatedImageView(url: url)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .padding(24)
         } else if let image = store.currentImage {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFit()
-                .padding(24)
+            RotatedMediaView(rotationDegrees: store.currentRotationDegrees) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+            }
+            .padding(24)
         } else {
             Text(store.status)
                 .foregroundStyle(.secondary)
@@ -200,5 +241,23 @@ struct ContentView: View {
         let lowerBound = max(store.images.startIndex, index - 24)
         let upperBound = min(store.images.index(before: store.images.endIndex), index + 48)
         ThumbnailCache.shared.preheat(Array(store.images[lowerBound...upperBound]))
+    }
+}
+
+private struct RotatedMediaView<Content: View>: View {
+    let rotationDegrees: Int
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        GeometryReader { geometry in
+            let isSideways = abs(rotationDegrees / 90).isMultiple(of: 2) == false
+            content()
+                .frame(
+                    width: isSideways ? geometry.size.height : geometry.size.width,
+                    height: isSideways ? geometry.size.width : geometry.size.height
+                )
+                .rotationEffect(.degrees(Double(rotationDegrees)))
+                .frame(width: geometry.size.width, height: geometry.size.height)
+        }
     }
 }

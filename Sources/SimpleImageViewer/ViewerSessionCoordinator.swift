@@ -158,6 +158,11 @@ final class ViewerSessionCoordinator {
         activeSession()?.store.zoomOut()
     }
 
+    @discardableResult
+    func rotateActiveWindow(clockwise: Bool) -> Bool {
+        return activeSession()?.store.rotateCurrentImage(clockwise: clockwise) == true
+    }
+
     func toggleActiveWindowPlayback() {
         activeSession()?.store.togglePlayback()
     }
@@ -168,6 +173,10 @@ final class ViewerSessionCoordinator {
 
     func canCopyImage(in window: NSWindow?) -> Bool {
         session(for: window)?.store.canCopyCurrentImage == true
+    }
+
+    func canRotateImage(in window: NSWindow?) -> Bool {
+        session(for: window)?.store.canRotateCurrentImage == true
     }
 
     @discardableResult
@@ -186,6 +195,12 @@ final class ViewerSessionCoordinator {
         guard let session = session(for: window) else { return false }
         session.store.navigate(delta)
         return true
+    }
+
+    @discardableResult
+    func rotateImage(clockwise: Bool, in window: NSWindow?) -> Bool {
+        guard let session = session(for: window) else { return false }
+        return session.store.rotateCurrentImage(clockwise: clockwise)
     }
 
     func selectFirstInActiveWindow() {
@@ -216,7 +231,7 @@ final class ViewerSessionCoordinator {
             backing: .buffered,
             defer: false
         )
-        window.title = "Simple Image Viewer"
+        window.title = "Folder Image Viewer"
         window.contentViewController = NSHostingController(rootView: contentView)
 
         let controller = NSWindowController(window: window)

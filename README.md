@@ -1,8 +1,8 @@
-# Simple Image Viewer
+# Folder Image Viewer
 
-**Simple Image Viewer** is a small macOS media viewer for quickly moving through a folder of images and videos with the keyboard.
+**Folder Image Viewer** is a small macOS media viewer for quickly moving through a folder of images and videos with the keyboard.
 
-The acronym is **SIV**, pronounced like “sieve.”
+The acronym is **FIV**.
 
 ## Features
 
@@ -34,7 +34,7 @@ The acronym is **SIV**, pronounced like “sieve.”
 This builds:
 
 ```text
-dist/Simple Image Viewer.app
+dist/Folder Image Viewer.app
 ```
 
 Open a specific image, video, or folder:
@@ -45,7 +45,7 @@ Open a specific image, video, or folder:
 ./script/build_and_run.sh run /path/to/folder
 ```
 
-When opening a folder from the app UI, Simple Image Viewer shows recursive scan
+When opening a folder from the app UI, Folder Image Viewer shows recursive scan
 options inside the native folder picker. Select a folder to preview media counts,
 then enable subfolders, choose the maximum depth, and cap the total number of
 media files loaded before opening it.
@@ -63,13 +63,27 @@ decoding. It then launches the app against a non-first fixture image, checks
 that the viewer selects it, relaunches against the fixture folder, and checks
 that the viewer opens the natural first image.
 
-Install the app so it appears in Spotlight:
+Install the app and `fiv` command:
 
 ```sh
 ./script/install_app.sh
 ```
 
-By default this copies the built app to `/Applications/Simple Image Viewer.app`.
+By default this copies the built app to `/Applications/Folder Image Viewer.app`
+and installs `fiv` to `~/.local/bin`.
+
+```sh
+fiv .
+fiv /path/to/folder
+fiv /path/to/image.png
+```
+
+If `~/.local/bin` is not on your `PATH`, add it or rerun with a different
+command location:
+
+```sh
+BIN_DIR=/usr/local/bin ./script/install_app.sh
+```
 
 ## Use As Default Image Viewer
 
@@ -77,8 +91,8 @@ After building once:
 
 1. Right-click a `.png`, `.jpg`, or other image file in Finder.
 2. Choose **Get Info**.
-3. Under **Open with**, choose `dist/Simple Image Viewer.app`.
-4. Click **Change All...** if you want that file type to open with Simple Image Viewer by default.
+3. Under **Open with**, choose `dist/Folder Image Viewer.app`.
+4. Click **Change All...** if you want that file type to open with Folder Image Viewer by default.
 
 Repeat per file type if needed. Video file types can be assigned the same way.
 
@@ -104,7 +118,7 @@ script/
 
 ## Development Notes
 
-Simple Image Viewer intentionally uses a small SwiftUI/AppKit surface instead of a generated Xcode project. The build script compiles the Swift sources, creates a `.app` bundle, and writes a minimal `Info.plist`.
+Folder Image Viewer intentionally uses a small SwiftUI/AppKit surface instead of a generated Xcode project. The build script compiles the Swift sources, creates a `.app` bundle, and writes a minimal `Info.plist`.
 
 No external dependencies are required.
 

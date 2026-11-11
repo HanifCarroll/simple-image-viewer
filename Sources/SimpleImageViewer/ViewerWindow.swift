@@ -10,6 +10,21 @@ final class ViewerWindow: NSWindow {
             return
         }
 
+        if event.hasCommandOnlyModifier {
+            switch event.charactersIgnoringModifiers?.lowercased() {
+            case "l":
+                if sessionCoordinator?.rotateImage(clockwise: false, in: self) == true {
+                    return
+                }
+            case "r":
+                if sessionCoordinator?.rotateImage(clockwise: true, in: self) == true {
+                    return
+                }
+            default:
+                break
+            }
+        }
+
         guard !event.hasViewerNavigationModifier else {
             super.keyDown(with: event)
             return
@@ -30,8 +45,10 @@ final class ViewerWindow: NSWindow {
     }
 
     override func sendEvent(_ event: NSEvent) {
+        let canCopy = sessionCoordinator?.canCopyImage(in: self) == true
+        let canRotate = sessionCoordinator?.canRotateImage(in: self) == true
         guard event.type == .rightMouseDown,
-              sessionCoordinator?.canCopyActiveWindowImage == true,
+              canCopy || canRotate,
               let contentView
         else {
             super.sendEvent(event)
@@ -39,14 +56,37 @@ final class ViewerWindow: NSWindow {
         }
 
         let menu = NSMenu()
-        let item = NSMenuItem(title: "Copy Image", action: #selector(copyImage), keyEquivalent: "")
-        item.target = self
-        menu.addItem(item)
+        if canRotate {
+            let rotateLeft = NSMenuItem(title: "Rotate Left", action: #selector(rotateLeft), keyEquivalent: "")
+            rotateLeft.target = self
+            menu.addItem(rotateLeft)
+
+            let rotateRight = NSMenuItem(title: "Rotate Right", action: #selector(rotateRight), keyEquivalent: "")
+            rotateRight.target = self
+            menu.addItem(rotateRight)
+        }
+
+        if canCopy {
+            if canRotate {
+                menu.addItem(.separator())
+            }
+            let item = NSMenuItem(title: "Copy Image", action: #selector(copyImage), keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
         NSMenu.popUpContextMenu(menu, with: event, for: contentView)
     }
 
     @objc private func copyImage() {
         sessionCoordinator?.copyActiveWindowImageToPasteboard()
+    }
+
+    @objc private func rotateLeft() {
+        sessionCoordinator?.rotateImage(clockwise: false, in: self)
+    }
+
+    @objc private func rotateRight() {
+        sessionCoordinator?.rotateImage(clockwise: true, in: self)
     }
 }
 

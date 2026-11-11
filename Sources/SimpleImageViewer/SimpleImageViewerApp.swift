@@ -22,6 +22,12 @@ struct SimpleImageViewerApp: App {
                 Button("Copy Image") { appDelegate.copyActiveWindowImageToPasteboard() }
                     .keyboardShortcut("c", modifiers: [.command])
             }
+            CommandMenu("Image") {
+                Button("Rotate Left") { appDelegate.rotateActiveWindowLeft() }
+                    .keyboardShortcut("l", modifiers: [.command])
+                Button("Rotate Right") { appDelegate.rotateActiveWindowRight() }
+                    .keyboardShortcut("r", modifiers: [.command])
+            }
             CommandMenu("Navigate") {
                 Button("Previous Image") { appDelegate.navigateActiveWindow(-1) }
                     .keyboardShortcut(.leftArrow, modifiers: [])

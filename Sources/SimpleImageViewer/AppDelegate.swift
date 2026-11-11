@@ -70,6 +70,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sessionCoordinator.zoomActiveWindowOut()
     }
 
+    func rotateActiveWindowLeft() {
+        sessionCoordinator.rotateActiveWindow(clockwise: false)
+    }
+
+    func rotateActiveWindowRight() {
+        sessionCoordinator.rotateActiveWindow(clockwise: true)
+    }
+
     func toggleActiveWindowPlayback() {
         sessionCoordinator.toggleActiveWindowPlayback()
     }
@@ -106,6 +114,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if event.hasCommandOnlyModifier,
            event.charactersIgnoringModifiers?.lowercased() == "c" {
             return copyActiveWindowImageToPasteboard() ? nil : event
+        }
+
+        if event.hasCommandOnlyModifier {
+            guard !isTextInputActive(in: event.window ?? NSApp.keyWindow) else {
+                return event
+            }
+            switch event.charactersIgnoringModifiers?.lowercased() {
+            case "l":
+                return sessionCoordinator.rotateActiveWindow(clockwise: false) ? nil : event
+            case "r":
+                return sessionCoordinator.rotateActiveWindow(clockwise: true) ? nil : event
+            default:
+                break
+            }
         }
 
         if event.hasCommandZoomModifier {

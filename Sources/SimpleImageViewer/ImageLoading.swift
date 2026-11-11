@@ -42,7 +42,7 @@ final class ImageLoadingService {
         animatedCache.countLimit = 4
 
         queue = OperationQueue()
-        queue.name = "app.simple-image-viewer.full-size-images"
+        queue.name = "app.folder-image-viewer.full-size-images"
         queue.qualityOfService = .userInitiated
         queue.maxConcurrentOperationCount = 2
     }
@@ -117,7 +117,7 @@ final class ThumbnailCache {
         cache.countLimit = 600
 
         queue = OperationQueue()
-        queue.name = "app.simple-image-viewer.thumbnails"
+        queue.name = "app.folder-image-viewer.thumbnails"
         queue.qualityOfService = .userInitiated
         queue.maxConcurrentOperationCount = 4
     }

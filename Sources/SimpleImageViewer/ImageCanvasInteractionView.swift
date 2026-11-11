@@ -5,14 +5,20 @@ struct ImageCanvasInteractionView: NSViewRepresentable {
     let onMagnify: (Double) -> Void
     let onScroll: (CGFloat, CGFloat) -> Void
     let onCopy: () -> Void
+    let onRotateLeft: () -> Void
+    let onRotateRight: () -> Void
     let canCopy: () -> Bool
+    let canRotate: () -> Bool
 
     func makeNSView(context: Context) -> CanvasInteractionNSView {
         let view = CanvasInteractionNSView()
         view.onMagnify = onMagnify
         view.onScroll = onScroll
         view.onCopy = onCopy
+        view.onRotateLeft = onRotateLeft
+        view.onRotateRight = onRotateRight
         view.canCopy = canCopy
+        view.canRotate = canRotate
         return view
     }
 
@@ -20,7 +26,10 @@ struct ImageCanvasInteractionView: NSViewRepresentable {
         view.onMagnify = onMagnify
         view.onScroll = onScroll
         view.onCopy = onCopy
+        view.onRotateLeft = onRotateLeft
+        view.onRotateRight = onRotateRight
         view.canCopy = canCopy
+        view.canRotate = canRotate
     }
 }
 
@@ -28,7 +37,10 @@ final class CanvasInteractionNSView: NSView {
     var onMagnify: ((Double) -> Void)?
     var onScroll: ((CGFloat, CGFloat) -> Void)?
     var onCopy: (() -> Void)?
+    var onRotateLeft: (() -> Void)?
+    var onRotateRight: (() -> Void)?
     var canCopy: (() -> Bool)?
+    var canRotate: (() -> Bool)?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -58,15 +70,41 @@ final class CanvasInteractionNSView: NSView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        guard canCopy?() == true else { return nil }
+        let isCopyEnabled = canCopy?() == true
+        let isRotateEnabled = canRotate?() == true
+        guard isCopyEnabled || isRotateEnabled else { return nil }
+
         let menu = NSMenu()
-        let item = NSMenuItem(title: "Copy Image", action: #selector(copyImage), keyEquivalent: "")
-        item.target = self
-        menu.addItem(item)
+        if isRotateEnabled {
+            let rotateLeft = NSMenuItem(title: "Rotate Left", action: #selector(rotateLeft), keyEquivalent: "")
+            rotateLeft.target = self
+            menu.addItem(rotateLeft)
+
+            let rotateRight = NSMenuItem(title: "Rotate Right", action: #selector(rotateRight), keyEquivalent: "")
+            rotateRight.target = self
+            menu.addItem(rotateRight)
+        }
+
+        if isCopyEnabled {
+            if isRotateEnabled {
+                menu.addItem(.separator())
+            }
+            let item = NSMenuItem(title: "Copy Image", action: #selector(copyImage), keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
         return menu
     }
 
     @objc private func copyImage() {
         onCopy?()
+    }
+
+    @objc private func rotateLeft() {
+        onRotateLeft?()
+    }
+
+    @objc private func rotateRight() {
+        onRotateRight?()
     }
 }

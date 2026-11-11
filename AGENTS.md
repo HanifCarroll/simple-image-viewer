@@ -1,4 +1,4 @@
-# Simple Image Viewer Instructions
+# Folder Image Viewer Instructions
 
 This is a small SwiftUI macOS app for fast folder-based image viewing.
 

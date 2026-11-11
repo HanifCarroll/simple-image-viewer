@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="Simple Image Viewer"
-BINARY_NAME="simple-image-viewer"
-BUNDLE_ID="app.simple-image-viewer"
+APP_NAME="Folder Image Viewer"
+BINARY_NAME="folder-image-viewer"
+BUNDLE_ID="app.folder-image-viewer"
+LEGACY_APP_NAME="Simple Image Viewer"
+LEGACY_BINARY_NAME="simple-image-viewer"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$BINARY_NAME"
+LEGACY_APP_BUNDLE="$DIST_DIR/$LEGACY_APP_NAME.app"
+LEGACY_EXECUTABLE="$LEGACY_APP_BUNDLE/Contents/MacOS/$LEGACY_BINARY_NAME"
 APP_LOG="$HOME/Library/Logs/$APP_NAME/app.log"
 VERIFY_FIXTURE_DIR="$DIST_DIR/verify-fixtures"
 VERIFY_NESTED_DIR="$VERIFY_FIXTURE_DIR/nested"
@@ -27,15 +31,17 @@ if [[ "$MODE" == "run" || "$MODE" == "--verify" || "$MODE" == "--debug" || "$MOD
 fi
 
 pkill -f "$EXECUTABLE" >/dev/null 2>&1 || true
+pkill -f "$LEGACY_EXECUTABLE" >/dev/null 2>&1 || true
 
 if [[ "$MODE" == "--verify" ]]; then
   cleanup_verify_app() {
     pkill -f "$EXECUTABLE" >/dev/null 2>&1 || true
+    pkill -f "$LEGACY_EXECUTABLE" >/dev/null 2>&1 || true
   }
   trap cleanup_verify_app EXIT
 fi
 
-rm -rf "$APP_BUNDLE"
+rm -rf "$APP_BUNDLE" "$LEGACY_APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 
 swiftc -parse-as-library "$ROOT_DIR"/Sources/SimpleImageViewer/*.swift \

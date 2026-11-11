@@ -1,6 +1,6 @@
 # Contributing
 
-Simple Image Viewer is intentionally small. Contributions should keep the app fast, native, and dependency-free.
+Folder Image Viewer is intentionally small. Contributions should keep the app fast, native, and dependency-free.
 
 ## Local Development
 
